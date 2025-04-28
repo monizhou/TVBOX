@@ -1,0 +1,6 @@
+From: 981904998l@qq.com
+To: 981904998l@qq.com
+Subject: GitHub同步失败
+Content-Type: text/plain; charset=utf-8
+
+文件复制失败\n完整日志：/f/GitHub/TVBOX/sync.log
