@@ -76,3 +76,4 @@ curl: (56) response reading failed (errno: 0)
 To github.com:monizhou/TVBOX.git
    5a6fb34..fd513de  main -> main
 [2025-04-29 01:28:50] 同步成功
+[2025-04-29 15:18:48] 文件复制成功: -rw-r--r-- 1 Administrator 197121 422907 Apr 29 15:18 发货计划（宜宾项目）汇总.xlsx
