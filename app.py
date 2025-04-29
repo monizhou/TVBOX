@@ -184,7 +184,7 @@ def apply_card_styles():
             content: '';
             display: block;
             width: 100%; /* 下划线长度占满文字区域 */
-            height: 4px; /* 下划线高度 */
+            height: 3.3px; /* 下划线高度 */
             background: linear-gradient(90deg, transparent 30%, #add8e6 50%, transparent 70%);
             position: absolute;
             left: 0;
