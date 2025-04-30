@@ -161,19 +161,36 @@ def apply_card_styles():
             margin-bottom: 2rem;
         }}
         .welcome-header {{
-            font-size: 2.5rem;
+            font-size: 3.5rem;
             font-weight: bold;
             margin-bottom: 1rem;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
             color: transparent;
             text-align: center;
+            
         }}
         .welcome-subheader {{
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             text-align: center;
             color: #666;
             margin-bottom: 2rem;
+            position: relative; /* 为伪元素定位做准备 */
+            padding-bottom: 0.5rem; /* 防止文字与下划线重叠 */
+        }}
+
+        /* 伪元素生成渐变下划线 */
+        .welcome-subheader::after {{
+            content: '';
+            display: block;
+            width: 100%; /* 下划线长度占满文字区域 */
+            height: 3.3px; /* 下划线高度 */
+            background: linear-gradient(90deg, transparent 30%, #add8e6 50%, transparent 70%);
+            position: absolute;
+            left: 0;
+            bottom: 0;
+    b       order-radius: 2px; /* 圆角效果，可选 */
+            
         }}
         .dataframe {{
             animation: fadeIn 0.6s ease-out;
@@ -532,7 +549,7 @@ def show_project_selection(df):
         欢迎使用钢筋发货监控系统
     </div>
     <div class="welcome-subheader">
-        中铁物贸成都分公司 - 四川物供中心
+        中铁物贸成都分公司 - 四川经营中心
     </div>
     """, unsafe_allow_html=True)
 
@@ -564,11 +581,28 @@ def show_project_selection(df):
 
     with st.spinner("加载项目部信息..."):
         logistics_df = load_logistics_data()
-        valid_projects = sorted([p for p in logistics_df["项目部"].unique() if p != ""])
+        valid_projects = []
+
+        if not logistics_df.empty:
+            # 获取当前日期并计算日期范围
+            current_date = datetime.now().date()
+            start_date = current_date - timedelta(days=7)
+            end_date = current_date + timedelta(days=7)
+
+            # 转换交货时间为日期并过滤无效数据
+            logistics_df = logistics_df.dropna(subset=['交货时间'])
+            logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
+
+            # 过滤最近7天前后的物流数据
+            mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
+            filtered_logistics = logistics_df[mask]
+
+            # 提取有效项目名称
+            valid_projects = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
 
     selected = st.selectbox(
         "选择项目部",
-        ["中铁物贸成都分公司"] + valid_projects,
+        ["中铁物贸成都分公司"] + valid_projects,  # 始终显示总部选项
         key="project_selector"
     )
 
