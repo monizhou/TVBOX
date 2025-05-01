@@ -10,7 +10,6 @@ import requests
 import hashlib
 import json
 
-
 # ==================== 系统配置 ====================
 class AppConfig:
     DATA_PATHS = [
@@ -72,7 +71,6 @@ class AppConfig:
         """
     }
 
-
 # ==================== 辅助函数 ====================
 def find_data_file():
     for path in AppConfig.DATA_PATHS:
@@ -80,10 +78,61 @@ def find_data_file():
             return path
     return None
 
-
 def apply_card_styles():
     st.markdown(f"""
     <style>
+        /* 苹果风格标签页 */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+            padding: 8px 0;
+            background: #f5f5f7;
+            border-radius: 12px;
+            margin: 1rem 0;
+        }}
+
+        .stTabs [data-baseweb="tab"] {{
+            background: transparent !important;
+            padding: 12px 24px !important;
+            border: none !important;
+            color: #86868b !important;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            border-radius: 8px;
+            margin: 0 4px !important;
+        }}
+
+        .stTabs [data-baseweb="tab"]:hover {{
+            background: rgba(0, 0, 0, 0.04) !important;
+            color: #1d1d1f !important;
+            transform: scale(1.02);
+        }}
+
+        .stTabs [aria-selected="true"] {{
+            background: #ffffff !important;
+            color: #1d1d1f !important;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
+                        inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+        }}
+
+        .stTabs [aria-selected="true"]:hover {{
+            transform: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1),
+                        inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+        }}
+
+        /* 适配移动端 */
+        @media (max-width: 768px) {{
+            .stTabs [data-baseweb="tab-list"] {{
+                flex-wrap: wrap;
+            }}
+            .stTabs [data-baseweb="tab"] {{
+                flex: 1 1 45%;
+                margin: 4px !important;
+                text-align: center;
+            }}
+        }}
         {AppConfig.CARD_STYLES['number_animation']}
         {AppConfig.CARD_STYLES['floating_animation']}
         {AppConfig.CARD_STYLES['pulse_animation']}
@@ -168,36 +217,20 @@ def apply_card_styles():
             -webkit-background-clip: text;
             color: transparent;
             text-align: center;
-            
         }}
         .welcome-subheader {{
             font-size: 1.5rem;
             text-align: center;
             color: #666;
             margin-bottom: 2rem;
-            position: relative; /* 为伪元素定位做准备 */
-            padding-bottom: 0.5rem; /* 防止文字与下划线重叠 */
-        }}
-
-        /* 伪元素生成渐变下划线 */
-        .welcome-subheader::after {{
-            content: '';
-            display: block;
-            width: 100%; /* 下划线长度占满文字区域 */
-            height: 3.3px; /* 下划线高度 */
-            background: linear-gradient(90deg, transparent 30%, #add8e6 50%, transparent 70%);
-            position: absolute;
-            left: 0;
-            bottom: 0;
-    b       order-radius: 2px; /* 圆角效果，可选 */
-            
+            position: relative;
+            padding-bottom: 0.5rem;
         }}
         .dataframe {{
             animation: fadeIn 0.6s ease-out;
         }}
     </style>
     """, unsafe_allow_html=True)
-
 
 def generate_record_id(row):
     key_fields = [
@@ -208,7 +241,6 @@ def generate_record_id(row):
         str(row["项目部"])
     ]
     return hashlib.md5("|".join(key_fields).encode('utf-8')).hexdigest()
-
 
 def send_feishu_notification(material_info):
     message = {
@@ -253,7 +285,6 @@ def send_feishu_notification(material_info):
     except Exception as e:
         st.error(f"飞书通知发送失败: {str(e)}")
         return False
-
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=3600)
@@ -309,7 +340,6 @@ def load_data():
         st.error(f"数据加载失败: {str(e)}")
         return pd.DataFrame()
 
-
 @st.cache_data(ttl=3600)
 def load_logistics_data():
     data_path = find_data_file()
@@ -341,7 +371,6 @@ def load_logistics_data():
         st.error(f"物流数据加载失败: {str(e)}")
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
-
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
@@ -354,7 +383,6 @@ def load_logistics_status():
             return status_df
     return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
 
-
 def save_logistics_status(status_df):
     try:
         with st.spinner("保存状态..."):
@@ -363,7 +391,6 @@ def save_logistics_status(status_df):
     except Exception as e:
         st.error(f"状态保存失败: {str(e)}")
         return False
-
 
 def merge_logistics_with_status(logistics_df):
     if logistics_df.empty:
@@ -383,7 +410,6 @@ def merge_logistics_with_status(logistics_df):
     )
     merged["到货状态"] = merged["到货状态_status"].fillna("")
     return merged.drop(columns=["到货状态_status"])
-
 
 def update_logistics_status(record_id, new_status, original_row=None):
     status_df = load_logistics_status()
@@ -427,19 +453,19 @@ def update_logistics_status(record_id, new_status, original_row=None):
         return True
     return False
 
-
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-    st.subheader("🚛 钢材物流明细管理")
 
-    col1, col2 = st.columns(2)
-    with col1:
+
+    # 日期选择器布局调整
+    date_col1, date_col2 = st.columns(2)
+    with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
             datetime.now().date() - timedelta(days=AppConfig.LOGISTICS_DATE_RANGE_DAYS),
             key="logistics_start"
         )
-    with col2:
+    with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
             datetime.now().date(),
@@ -463,7 +489,40 @@ def show_logistics_tab(project):
             )
             filtered_df = logistics_df[mask].copy()
 
+            # =============== 新增：统一卡片样式 ===============
+            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+
+            overdue_count = filtered_df['到货状态'].eq('未到货').sum()
+            total_count = len(filtered_df)
+            arrived_count = total_count - overdue_count
+
+            cols = st.columns(4)
+            metrics = [
+                ("📦", "总物流单数", f"{total_count}", "单"),
+                ("✅", "已到货单数", f"{arrived_count}", "单"),
+                ("⚠️", "未到货订单", f"{overdue_count}", "单"),
+                ("🕒", "准时率", f"{(arrived_count / total_count) * 100:.1f}%" if total_count > 0 else "0%", "")
+            ]
+
+            for idx, metric in enumerate(metrics):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:1.2rem">{metric[0]}</span>
+                            <span style="font-weight:600">{metric[1]}</span>
+                        </div>
+                        <div class="card-value">{metric[2]}</div>
+                        <div class="card-unit">{metric[3]}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+            # =============== 修改结束 ===============
+
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
+
+            # 以下保持原有表格代码不变...
 
             edited_df = st.data_editor(
                 filtered_df.drop(columns=["record_id"]),
@@ -505,8 +564,7 @@ def show_logistics_tab(project):
                 last_update = pd.to_datetime(status_df["update_time"]).max()
                 st.caption(f"状态最后更新时间: {last_update.strftime('%Y-%m-%d %H:%M:%S')}")
         else:
-            st.info("指定日期范围内无物流数据")
-
+            st.info("📭 当前没有物流数据")
 
 def display_metrics_cards(filtered_df):
     if filtered_df.empty:
@@ -541,7 +599,6 @@ def display_metrics_cards(filtered_df):
             </div>
             """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-
 
 def show_project_selection(df):
     st.markdown("""
@@ -584,25 +641,21 @@ def show_project_selection(df):
         valid_projects = []
 
         if not logistics_df.empty:
-            # 获取当前日期并计算日期范围
             current_date = datetime.now().date()
             start_date = current_date - timedelta(days=7)
             end_date = current_date + timedelta(days=7)
 
-            # 转换交货时间为日期并过滤无效数据
             logistics_df = logistics_df.dropna(subset=['交货时间'])
             logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
 
-            # 过滤最近7天前后的物流数据
             mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
             filtered_logistics = logistics_df[mask]
 
-            # 提取有效项目名称
             valid_projects = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
 
     selected = st.selectbox(
         "选择项目部",
-        ["中铁物贸成都分公司"] + valid_projects,  # 始终显示总部选项
+        ["中铁物贸成都分公司"] + valid_projects,
         key="project_selector"
     )
 
@@ -633,7 +686,6 @@ def show_project_selection(df):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
@@ -651,6 +703,7 @@ def show_data_panel(df, project):
     tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
 
     with tab1:
+        # 新增这行
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0))
@@ -719,7 +772,6 @@ def show_data_panel(df, project):
     with tab2:
         show_logistics_tab(project)
 
-
 # ==================== 主程序 ====================
 def main():
     st.set_page_config(
@@ -742,7 +794,6 @@ def main():
         show_project_selection(df)
     else:
         show_data_panel(df, st.session_state.selected_project)
-
 
 if __name__ == "__main__":
     if os.name == 'nt':
