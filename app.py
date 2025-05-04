@@ -81,6 +81,24 @@ def find_data_file():
 def apply_card_styles():
     st.markdown(f"""
     <style>
+        /* 新增备注卡片样式 */
+        .remark-card {{
+            background: rgba(245, 245, 247, 0.9);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+        }}
+        .plan-remark {{ border-color: #2196F3; }}
+        .logistics-remark {{ border-color: #4CAF50; }}
+        .remark-content {{
+            font-size: 1rem;
+            color: #666;
+            text-align: center;
+            padding: 1rem;
+        }}
+        
         /* 苹果风格标签页 */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
@@ -559,6 +577,14 @@ def show_logistics_tab(project):
 
                     del st.session_state['logistics_editor_' + project]['edited_rows'][row_index]
 
+            st.markdown("""
+            <div class="remark-card logistics-remark">
+                <div class="remark-content">
+                    📢 以上数据为公司已安排的发货情况
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
             status_df = load_logistics_status()
             if not status_df.empty:
                 last_update = pd.to_datetime(status_df["update_time"]).max()
@@ -758,6 +784,15 @@ def show_data_panel(df, project):
                         height=min(600, 35 * len(display_df) + 40),
                         hide_index=True
                     )
+
+                    # ============= 新增发货计划备注卡片 =============
+                    st.markdown("""
+                                        <div class="remark-card plan-remark">
+                                            <div class="remark-content">
+                                                📢 以上计划已全部提报给公司
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
 
                     st.download_button(
                         "⬇️ 导出数据",
