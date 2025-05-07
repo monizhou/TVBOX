@@ -668,8 +668,8 @@ def show_project_selection(df):
 
         if not logistics_df.empty:
             current_date = datetime.now().date()
-            start_date = current_date - timedelta(days=7)
-            end_date = current_date + timedelta(days=7)
+            start_date = current_date - timedelta(days=15)
+            end_date = current_date + timedelta(days=15)
 
             logistics_df = logistics_df.dropna(subset=['交货时间'])
             logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
