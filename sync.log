@@ -1184,3 +1184,14 @@ To github.com:monizhou/TVBOX.git
 [2025-10-20 18:42:43] 同步成功
 [2025-10-20 19:21:00] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2329767 Oct 20 19:12 发货计划（宜宾项目）汇总.xlsm
 -rw-r--r-- 1 Administrator 197121 1471708 Oct 20 19:21 发货计划（宜宾项目）汇总.xlsx
+[main f9616c3] 自动更新: 2025-10-20 19:21:01
+ 5 files changed, 109 insertions(+)
+ create mode 100644 .idea/inspectionProfiles/Project_Default.xml
+ create mode 100644 .idea/misc.xml
+ create mode 100644 .idea/workspace.xml
+ create mode 100644 发货计划（宜宾项目）汇总.xlsx
+To github.com:monizhou/TVBOX.git
+   4931645..f9616c3  main -> main
+[2025-10-20 19:21:07] 同步成功
+[2025-10-20 20:20:50] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2324371 Oct 20 20:15 发货计划（宜宾项目）汇总.xlsm
+-rw-r--r-- 1 Administrator 197121 1471708 Oct 20 20:20 发货计划（宜宾项目）汇总.xlsx

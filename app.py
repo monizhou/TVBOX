@@ -2,7 +2,6 @@
 """钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版"""
 import os
 import re
-import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
@@ -10,12 +9,14 @@ import requests
 import hashlib
 import json
 
+
 # ==================== 系统配置 ====================
 class AppConfig:
     DATA_PATHS = [
         os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsm"),
-        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsm",
-        r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsm"
+        os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsx"),
+        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsx",
+        r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsx"
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
@@ -71,12 +72,29 @@ class AppConfig:
         """
     }
 
+
 # ==================== 辅助函数 ====================
 def find_data_file():
+    """查找数据文件，增强版本"""
     for path in AppConfig.DATA_PATHS:
         if os.path.exists(path):
+            st.success(f"✅ 找到数据文件: {os.path.basename(path)}")
             return path
+
+    # 如果没有找到配置的文件，列出当前目录下的所有Excel文件供选择
+    current_dir = os.path.dirname(__file__)
+    if current_dir:
+        excel_files = [f for f in os.listdir(current_dir) if f.endswith(('.xlsx', '.xls', '.xlsm'))]
+        if excel_files:
+            st.warning(f"未找到配置的数据文件，但发现以下Excel文件: {', '.join(excel_files)}")
+            # 尝试使用第一个Excel文件
+            first_excel = os.path.join(current_dir, excel_files[0])
+            st.info(f"尝试使用: {excel_files[0]}")
+            return first_excel
+
+    st.error("❌ 未找到任何Excel数据文件")
     return None
+
 
 def apply_card_styles():
     st.markdown(f"""
@@ -98,7 +116,7 @@ def apply_card_styles():
             text-align: center;
             padding: 1rem;
         }}
-        
+
         /* 苹果风格标签页 */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
@@ -181,7 +199,7 @@ def apply_card_styles():
             font-weight: 700;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
-            color: transparent;
+            -webkit-text-fill-color: transparent;
             animation: countup 0.8s ease-out;
             margin: 0.5rem 0;
         }}
@@ -233,7 +251,7 @@ def apply_card_styles():
             margin-bottom: 1rem;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
-            color: transparent;
+            -webkit-text-fill-color: transparent;
             text-align: center;
         }}
         .welcome-subheader {{
@@ -250,6 +268,7 @@ def apply_card_styles():
     </style>
     """, unsafe_allow_html=True)
 
+
 def generate_record_id(row):
     key_fields = [
         str(row["钢厂"]),
@@ -259,6 +278,7 @@ def generate_record_id(row):
         str(row["项目部"])
     ]
     return hashlib.md5("|".join(key_fields).encode('utf-8')).hexdigest()
+
 
 def send_feishu_notification(material_info):
     message = {
@@ -303,6 +323,7 @@ def send_feishu_notification(material_info):
     except Exception as e:
         st.error(f"飞书通知发送失败: {str(e)}")
         return False
+
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=3600)
@@ -358,6 +379,7 @@ def load_data():
         st.error(f"数据加载失败: {str(e)}")
         return pd.DataFrame()
 
+
 @st.cache_data(ttl=3600)
 def load_logistics_data():
     data_path = find_data_file()
@@ -366,12 +388,24 @@ def load_logistics_data():
 
     try:
         with st.spinner("正在加载物流数据..."):
-            df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
+            # 尝试读取物流明细表
+            try:
+                df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
+            except Exception as e:
+                st.warning(f"未找到'{AppConfig.LOGISTICS_SHEET_NAME}'工作表: {str(e)}")
+                return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
+            # 如果找不到物流明细表，返回空DataFrame
+            if df.empty:
+                st.warning("物流明细表为空")
+                return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
+
+            # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
                     df[col] = "" if col != "数量" else 0
 
+            # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
                 "": "未指定物资", "nan": "未指定物资", "None": "未指定物资", None: "未指定物资"})
             df["钢厂"] = df["钢厂"].astype(str).str.strip().replace({
@@ -379,27 +413,51 @@ def load_logistics_data():
             df["项目部"] = df["项目部"].astype(str).str.strip().replace({
                 "未指定项目部": "", "nan": "", "None": "", None: ""})
 
-            df["数量"] = pd.to_numeric(df["数量"], errors="coerce").fillna(0)
+            # 安全转换数值列
+            def safe_convert_numeric(series):
+                if series.dtype == 'object':
+                    # 处理字符串中的通配符和非数字字符
+                    cleaned = series.astype(str).str.replace(r'[^\d.-]', '', regex=True)
+                    cleaned = cleaned.replace({'': '0', 'nan': '0', 'None': '0', ' ': '0'})
+                    return pd.to_numeric(cleaned, errors='coerce').fillna(0)
+                else:
+                    return pd.to_numeric(series, errors='coerce').fillna(0)
+
+            df["数量"] = safe_convert_numeric(df["数量"])
+
+            # 处理日期列
             df["交货时间"] = pd.to_datetime(df["交货时间"], errors="coerce")
+
+            # 处理文本列
             df["联系方式"] = df["联系方式"].astype(str)
 
+            # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
+
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
+
     except Exception as e:
         st.error(f"物流数据加载失败: {str(e)}")
+        # 返回一个空的DataFrame，包含必要的列
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
+
 
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
-        with st.spinner("加载物流状态..."):
-            status_df = pd.read_csv(AppConfig.LOGISTICS_STATUS_FILE)
-            if "record_id" not in status_df.columns:
-                status_df["record_id"] = ""
-            if "update_time" not in status_df.columns:
-                status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
-            return status_df
+        try:
+            with st.spinner("加载物流状态..."):
+                status_df = pd.read_csv(AppConfig.LOGISTICS_STATUS_FILE)
+                if "record_id" not in status_df.columns:
+                    status_df["record_id"] = ""
+                if "update_time" not in status_df.columns:
+                    status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
+                return status_df
+        except Exception as e:
+            st.error(f"加载物流状态文件失败: {str(e)}")
+            return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
     return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
+
 
 def save_logistics_status(status_df):
     try:
@@ -409,6 +467,7 @@ def save_logistics_status(status_df):
     except Exception as e:
         st.error(f"状态保存失败: {str(e)}")
         return False
+
 
 def merge_logistics_with_status(logistics_df):
     if logistics_df.empty:
@@ -428,6 +487,7 @@ def merge_logistics_with_status(logistics_df):
     )
     merged["到货状态"] = merged["到货状态_status"].fillna("")
     return merged.drop(columns=["到货状态_status"])
+
 
 def update_logistics_status(record_id, new_status, original_row=None):
     status_df = load_logistics_status()
@@ -463,7 +523,8 @@ def update_logistics_status(record_id, new_status, original_row=None):
                 "物资名称": original_row["物资名称"],
                 "规格型号": original_row["规格型号"],
                 "数量": original_row["数量"],
-                "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M"),
+                "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(
+                    original_row["交货时间"]) else "未知",
                 "项目部": original_row["项目部"]
             }
             if send_feishu_notification(material_info):
@@ -471,10 +532,9 @@ def update_logistics_status(record_id, new_status, original_row=None):
         return True
     return False
 
+
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-
-
     # 日期选择器布局调整
     date_col1, date_col2 = st.columns(2)
     with date_col1:
@@ -501,13 +561,18 @@ def show_logistics_tab(project):
 
         if not logistics_df.empty:
             logistics_df = merge_logistics_with_status(logistics_df)
+
+            # 修复日期比较问题 - 确保类型一致
+            start_date_pd = pd.to_datetime(logistics_start_date)
+            end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)  # 包含结束日期的全天
+
             mask = (
-                    (logistics_df["交货时间"].dt.date >= logistics_start_date) &
-                    (logistics_df["交货时间"].dt.date <= logistics_end_date)
+                    (logistics_df["交货时间"] >= start_date_pd) &
+                    (logistics_df["交货时间"] < end_date_pd)
             )
             filtered_df = logistics_df[mask].copy()
 
-            # =============== 新增：统一卡片样式 ===============
+            # =============== 统一卡片样式 ===============
             st.markdown('<div class="metric-container">', unsafe_allow_html=True)
 
             overdue_count = filtered_df['到货状态'].eq('未到货').sum()
@@ -536,46 +601,58 @@ def show_logistics_tab(project):
                     """, unsafe_allow_html=True)
 
             st.markdown('</div>', unsafe_allow_html=True)
-            # =============== 修改结束 ===============
 
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
 
-            # 以下保持原有表格代码不变...
+            # 准备显示的列（排除record_id）
+            display_columns = [col for col in filtered_df.columns if col != "record_id"]
+            display_df = filtered_df[display_columns].copy()
 
-            edited_df = st.data_editor(
-                filtered_df.drop(columns=["record_id"]),
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "到货状态": st.column_config.SelectboxColumn(
-                        "到货状态",
-                        options=AppConfig.STATUS_OPTIONS,
-                        default="",
-                        required=False,
-                        width="small"
-                    ),
-                    **{col: {"width": "auto"} for col in filtered_df.columns if col != "到货状态"}
-                },
-                key=f"logistics_editor_{project}"
-            )
+            # 格式化显示
+            if not display_df.empty:
+                edited_df = st.data_editor(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "到货状态": st.column_config.SelectboxColumn(
+                            "到货状态",
+                            options=AppConfig.STATUS_OPTIONS,
+                            default="",
+                            required=False,
+                            width="small"
+                        ),
+                        "数量": st.column_config.NumberColumn(
+                            "数量",
+                            format="%d",
+                            width="medium"
+                        ),
+                        "交货时间": st.column_config.DatetimeColumn(
+                            "交货时间",
+                            format="YYYY-MM-DD HH:mm",
+                            width="medium"
+                        ),
+                        **{col: {"width": "auto"} for col in display_columns if
+                           col not in ["到货状态", "数量", "交货时间"]}
+                    },
+                    key=f"logistics_editor_{project}"
+                )
 
-            if 'logistics_editor_' + project in st.session_state:
-                changed_rows = st.session_state['logistics_editor_' + project]['edited_rows']
-                rows_to_process = []
-                for row_index, changes in changed_rows.items():
-                    if "到货状态" in changes:
-                        rows_to_process.append(row_index)
+                if f'logistics_editor_{project}' in st.session_state:
+                    changed_rows = st.session_state[f'logistics_editor_{project}'].get('edited_rows', {})
+                    rows_to_process = []
+                    for row_index, changes in changed_rows.items():
+                        if "到货状态" in changes:
+                            rows_to_process.append(int(row_index))
 
-                for row_index in rows_to_process:
-                    changes = changed_rows[row_index]
-                    record_id = filtered_df.iloc[row_index]["record_id"]
-                    new_status = changes["到货状态"]
-                    original_row = filtered_df.iloc[row_index]
+                    for row_index in rows_to_process:
+                        changes = changed_rows[str(row_index)]
+                        record_id = filtered_df.iloc[row_index]["record_id"]
+                        new_status = changes["到货状态"]
+                        original_row = filtered_df.iloc[row_index]
 
-                    if update_logistics_status(record_id, new_status, original_row):
-                        st.toast(f"已自动保存状态更新：{original_row['物资名称']}", icon="✅")
-
-                    del st.session_state['logistics_editor_' + project]['edited_rows'][row_index]
+                        if update_logistics_status(record_id, new_status, original_row):
+                            st.toast(f"已自动保存状态更新：{original_row['物资名称']}", icon="✅")
 
             st.markdown("""
             <div class="remark-card logistics-remark">
@@ -591,6 +668,7 @@ def show_logistics_tab(project):
                 st.caption(f"状态最后更新时间: {last_update.strftime('%Y-%m-%d %H:%M:%S')}")
         else:
             st.info("📭 当前没有物流数据")
+
 
 def display_metrics_cards(filtered_df):
     if filtered_df.empty:
@@ -625,6 +703,7 @@ def display_metrics_cards(filtered_df):
             </div>
             """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
 
 def show_project_selection(df):
     st.markdown("""
@@ -712,6 +791,7 @@ def show_project_selection(df):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
@@ -729,7 +809,6 @@ def show_data_panel(df, project):
     tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
 
     with tab1:
-        # 新增这行
         col1, col2 = st.columns(2)
         with col1:
             start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0))
@@ -785,14 +864,13 @@ def show_data_panel(df, project):
                         hide_index=True
                     )
 
-                    # ============= 新增发货计划备注卡片 =============
                     st.markdown("""
-                                        <div class="remark-card plan-remark">
-                                            <div class="remark-content">
-                                                📢 以上计划已全部提报给公司
-                                            </div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                    <div class="remark-card plan-remark">
+                        <div class="remark-content">
+                            📢 以上计划已全部提报给公司
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                     st.download_button(
                         "⬇️ 导出数据",
@@ -806,6 +884,7 @@ def show_data_panel(df, project):
 
     with tab2:
         show_logistics_tab(project)
+
 
 # ==================== 主程序 ====================
 def main():
@@ -830,8 +909,6 @@ def main():
     else:
         show_data_panel(df, st.session_state.selected_project)
 
-if __name__ == "__main__":
-    if os.name == 'nt':
-        os.system('chcp 65001 > nul')
-    main()
 
+if __name__ == "__main__":
+    main()
