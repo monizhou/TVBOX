@@ -1182,3 +1182,5 @@ hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 To github.com:monizhou/TVBOX.git
    3e9e7fa..aa333db  main -> main
 [2025-10-20 18:42:43] 同步成功
+[2025-10-20 19:21:00] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2329767 Oct 20 19:12 发货计划（宜宾项目）汇总.xlsm
+-rw-r--r-- 1 Administrator 197121 1471708 Oct 20 19:21 发货计划（宜宾项目）汇总.xlsx
