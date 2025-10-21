@@ -292,11 +292,17 @@ def apply_card_styles():
 
 
 def generate_record_id(row):
+    """生成唯一记录ID，包含更多字段以避免重复"""
     key_fields = [
         str(row["钢厂"]),
         str(row["物资名称"]),
         str(row["规格型号"]),
+        str(row["单位"]),
+        str(row["数量"]),
         str(row["交货时间"]),
+        str(row["收货地址"]),
+        str(row["联系人"]),
+        str(row["联系方式"]),
         str(row["项目部"])
     ]
     return hashlib.md5("|".join(key_fields).encode('utf-8')).hexdigest()
@@ -711,7 +717,7 @@ def show_logistics_tab(project):
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        width="medium"
+                        width="small"  # 减小数量列宽度
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
