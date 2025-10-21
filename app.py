@@ -15,9 +15,9 @@ import json
 class AppConfig:
     DATA_PATHS = [
         os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsm"),
-        os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsx"),
-        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsx",
-        r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsx"
+        os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsm"),
+        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsm",
+        r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsm"
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
