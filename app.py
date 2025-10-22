@@ -45,7 +45,7 @@ class AppConfig:
     # 项目密码配置
     PROJECT_PASSWORDS = {
         "中铁物贸成都分公司": "123456",
-        "项目部A": "projectA123",
+        "五冶建设空港兴城怡心街道83亩项目": "projectA123",
         "项目部B": "projectB123",
         "项目部C": "projectC123"
         # 可以继续添加其他项目部的密码
@@ -1054,3 +1054,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
