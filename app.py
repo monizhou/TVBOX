@@ -966,7 +966,7 @@ def show_project_selection(df):
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
-    col1, col2 = st.columns([1, 1])
+    col1, col2 = st.columns([1, 5])
     with col1:
         if st.button("🔄 刷新数据"):
             with st.spinner("刷新数据中..."):
@@ -1083,5 +1083,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
