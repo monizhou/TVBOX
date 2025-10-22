@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版"""
+"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版 - URL直连版"""
 import os
 import re
 import time
@@ -875,7 +875,7 @@ def show_data_panel(df, project):
                 st.cache_data.clear()
                 st.rerun()
     with col2:
-        if st.button("← 返回"):
+        if st.button("← 返回首页"):
             st.session_state.project_selected = False
             st.rerun()
 
@@ -959,6 +959,55 @@ def show_data_panel(df, project):
         show_logistics_tab(project)
 
 
+# ==================== URL参数处理 ====================
+def handle_url_parameters():
+    """处理URL参数，实现直接跳转到指定项目部"""
+    query_params = st.experimental_get_query_params()
+    
+    if 'project' in query_params:
+        project_name = query_params['project'][0]
+        
+        # 验证项目部名称是否有效
+        valid_projects = get_valid_projects()
+        
+        if project_name in valid_projects:
+            # 直接设置选定的项目部
+            st.session_state.project_selected = True
+            st.session_state.selected_project = project_name
+            
+            # 如果是总部，需要密码验证
+            if project_name == "中铁物贸成都分公司":
+                st.session_state.need_password = True
+            else:
+                # 项目部直接进入，清除可能的密码状态
+                if 'need_password' in st.session_state:
+                    del st.session_state['need_password']
+                if 'temp_selected_project' in st.session_state:
+                    del st.session_state['temp_selected_project']
+
+
+def get_valid_projects():
+    """获取有效的项目部列表"""
+    logistics_df = load_logistics_data()
+    valid_projects = ["中铁物贸成都分公司"]  # 总部始终有效
+    
+    if not logistics_df.empty:
+        current_date = datetime.now().date()
+        start_date = current_date - timedelta(days=15)
+        end_date = current_date + timedelta(days=15)
+
+        logistics_df = logistics_df.dropna(subset=['交货时间'])
+        logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
+
+        mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
+        filtered_logistics = logistics_df[mask]
+
+        project_list = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
+        valid_projects.extend(project_list)
+    
+    return valid_projects
+
+
 # ==================== 主程序 ====================
 def main():
     st.set_page_config(
@@ -969,10 +1018,14 @@ def main():
     )
     apply_card_styles()
 
+    # 初始化session state
     if 'project_selected' not in st.session_state:
         st.session_state.project_selected = False
     if 'selected_project' not in st.session_state:
         st.session_state.selected_project = "中铁物贸成都分公司"
+
+    # 处理URL参数
+    handle_url_parameters()
 
     with st.spinner('加载数据中...'):
         df = load_data()
