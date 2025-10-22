@@ -15,15 +15,16 @@ import json
 class AppConfig:
     DATA_PATHS = [
         os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsm"),
-        os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsm"),
-        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsm"
+        os.path.join(os.path.dirname(__file__), "发货计划（宜宾项目）汇总.xlsx"),
+        r"F:\1.中铁物贸成都分公司-四川物供中心\钢材-结算\钢筋发货计划-发丁小刚\发货计划（宜宾项目）汇总.xlsx",
+        r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsx"
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "收货地址", "联系人", "联系方式", "项目部",
-        "到货状态"
+        "到货状态", "物流信息"
     ]
 
     DATE_FORMAT = "%Y-%m-%d"
@@ -37,8 +38,18 @@ class AppConfig:
     LOGISTICS_DATE_RANGE_DAYS = 5
 
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
-    STATUS_OPTIONS = ["已到货", "未到货"]
+    # 更新状态选项，包含完整的发货流程
+    STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
+    
+    # 项目密码配置
+    PROJECT_PASSWORDS = {
+        "中铁物贸成都分公司": "123456",
+        "项目部A": "projectA123",
+        "项目部B": "projectB123",
+        "项目部C": "projectC123"
+        # 可以继续添加其他项目部的密码
+    }
 
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
@@ -403,7 +414,10 @@ def load_logistics_data():
             # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
-                    df[col] = "" if col != "数量" else 0
+                    if col == "物流信息":
+                        df[col] = ""  # 物流信息列默认为空字符串
+                    else:
+                        df[col] = "" if col != "数量" else 0
 
             # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
@@ -448,15 +462,20 @@ def load_logistics_status():
         try:
             with st.spinner("加载物流状态..."):
                 status_df = pd.read_csv(AppConfig.LOGISTICS_STATUS_FILE)
+                # 确保必要的列存在
                 if "record_id" not in status_df.columns:
                     status_df["record_id"] = ""
+                if "到货状态" not in status_df.columns:
+                    status_df["到货状态"] = "公司统筹中"  # 默认状态
+                if "物流信息" not in status_df.columns:
+                    status_df["物流信息"] = ""  # 新增物流信息列
                 if "update_time" not in status_df.columns:
                     status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
                 return status_df
         except Exception as e:
             st.error(f"加载物流状态文件失败: {str(e)}")
-            return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
-    return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
+            return pd.DataFrame(columns=["record_id", "到货状态", "物流信息", "update_time"])
+    return pd.DataFrame(columns=["record_id", "到货状态", "物流信息", "update_time"])
 
 
 def save_logistics_status(status_df):
@@ -475,28 +494,35 @@ def merge_logistics_with_status(logistics_df):
 
     status_df = load_logistics_status()
     if status_df.empty:
-        logistics_df["到货状态"] = " "
+        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
+        logistics_df["物流信息"] = ""  # 新增物流信息列
         return logistics_df
 
     merged = pd.merge(
         logistics_df,
-        status_df[["record_id", "到货状态"]],
+        status_df[["record_id", "到货状态", "物流信息"]],
         on="record_id",
         how="left",
         suffixes=("", "_status")
     )
-    merged["到货状态"] = merged["到货状态_status"].fillna("")
-    return merged.drop(columns=["到货状态_status"])
+    # 填充缺失值
+    merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
+    merged["物流信息"] = merged["物流信息_status"].fillna("")
+    return merged.drop(columns=["到货状态_status", "物流信息_status"])
 
 
-def update_logistics_status(record_id, new_status, original_row=None):
-    """更新物流状态（带错误处理）"""
+def update_logistics_status(record_id, new_status, logistics_info="", original_row=None):
+    """更新物流状态和物流信息（带错误处理）"""
     try:
         status_df = load_logistics_status()
 
         if new_status is None:
-            new_status = ""
+            new_status = "公司统筹中"  # 默认状态
         new_status = str(new_status).strip()
+        
+        if logistics_info is None:
+            logistics_info = ""
+        logistics_info = str(logistics_info).strip()
 
         send_notification = False
         if new_status == "未到货":
@@ -505,16 +531,18 @@ def update_logistics_status(record_id, new_status, original_row=None):
                 send_notification = True
 
         if record_id in status_df["record_id"].values:
-            if new_status == " ":
+            if new_status == "":
                 status_df = status_df[status_df["record_id"] != record_id]
             else:
                 status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
+                status_df.loc[status_df["record_id"] == record_id, "物流信息"] = logistics_info
                 status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
                     AppConfig.DATE_FORMAT)
-        elif new_status != " ":
+        elif new_status != "":
             new_record = pd.DataFrame([{
                 "record_id": record_id,
                 "到货状态": new_status,
+                "物流信息": logistics_info,
                 "update_time": datetime.now().strftime(AppConfig.DATE_FORMAT)
             }])
             status_df = pd.concat([status_df, new_record], ignore_index=True)
@@ -581,16 +609,20 @@ def show_logistics_tab(project):
             # =============== 统一卡片样式 ===============
             st.markdown('<div class="metric-container">', unsafe_allow_html=True)
 
-            overdue_count = filtered_df['到货状态'].eq('未到货').sum()
             total_count = len(filtered_df)
-            arrived_count = total_count - overdue_count
+            arrived_count = len(filtered_df[filtered_df['到货状态'] == '已到货'])
+            not_arrived_count = len(filtered_df[filtered_df['到货状态'] == '未到货'])
+            coordinating_count = len(filtered_df[filtered_df['到货状态'] == '公司统筹中'])
+            accepted_count = len(filtered_df[filtered_df['到货状态'] == '钢厂已接单'])
+            transporting_count = len(filtered_df[filtered_df['到货状态'] == '运输中'])
 
-            cols = st.columns(4)
+            cols = st.columns(5)
             metrics = [
                 ("📦", "总物流单数", f"{total_count}", "单"),
-                ("✅", "已到货单数", f"{arrived_count}", "单"),
-                ("⚠️", "未到货订单", f"{overdue_count}", "单"),
-                ("🕒", "准时率", f"{(arrived_count / total_count) * 100:.1f}%" if total_count > 0 else "0%", "")
+                ("🏢", "公司统筹中", f"{coordinating_count}", "单"),
+                ("✅", "钢厂已接单", f"{accepted_count}", "单"),
+                ("🚚", "运输中", f"{transporting_count}", "单"),
+                ("📬", "已到货", f"{arrived_count}", "单")
             ]
 
             for idx, metric in enumerate(metrics):
@@ -627,14 +659,19 @@ def show_logistics_tab(project):
                     "到货状态": st.column_config.SelectboxColumn(
                         "到货状态",
                         options=AppConfig.STATUS_OPTIONS,
-                        default="",
-                        required=False,
-                        width="small"
+                        default="公司统筹中",  # 设置默认状态
+                        required=True,
+                        width="medium"
                     ),
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        width="medium"
+                        width=100  # 设置数量列宽为10个字符宽度
+                    ),
+                    "物流信息": st.column_config.TextColumn(
+                        "物流信息",
+                        width="large",  # 物流信息列可以宽一些
+                        help="可输入物流跟踪号、备注等信息"
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
@@ -642,7 +679,7 @@ def show_logistics_tab(project):
                         width="medium"
                     ),
                     **{col: {"width": "auto"} for col in display_columns if
-                       col not in ["到货状态", "数量", "交货时间"]}
+                       col not in ["到货状态", "数量", "物流信息", "交货时间"]}
                 },
                 key=f"logistics_editor_{project}"
             )
@@ -684,7 +721,7 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
     # 处理新的更改
     new_changes = []
     for row_index_str, changes in changed_rows.items():
-        change_hash = f"{row_index_str}_{changes.get('到货状态', '')}"
+        change_hash = f"{row_index_str}_{changes.get('到货状态', '')}_{changes.get('物流信息', '')}"
         if change_hash not in st.session_state[processed_key]:
             new_changes.append((row_index_str, changes))
             st.session_state[processed_key].add(change_hash)
@@ -705,25 +742,32 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
                 error_count += 1
                 continue
 
-            # 检查是否有到货状态更改
-            if "到货状态" in changes:
-                new_status = changes["到货状态"]
-                record_id = original_filtered_df.iloc[row_index]["record_id"]
-                original_row = original_filtered_df.iloc[row_index]
+            # 获取原始行数据
+            original_row = original_filtered_df.iloc[row_index]
+            record_id = original_row["record_id"]
 
-                # 获取当前状态
-                current_status = original_row["到货状态"]
+            # 获取更改后的状态和物流信息
+            new_status = changes.get("到货状态", original_row["到货状态"])
+            new_logistics_info = changes.get("物流信息", original_row.get("物流信息", ""))
 
-                # 只有当状态真正改变时才更新
-                if new_status != current_status:
-                    # 更新状态
-                    if update_logistics_status(record_id, new_status, original_row):
-                        success_count += 1
-                        # 使用toast显示成功消息
-                        st.toast(f"✅ 已自动保存: {original_row['物资名称']} -> {new_status}", icon="✅")
-                    else:
-                        error_count += 1
-                        st.toast(f"❌ 保存失败: {original_row['物资名称']}", icon="❌")
+            # 获取当前状态和物流信息
+            current_status = original_row["到货状态"]
+            current_logistics_info = original_row.get("物流信息", "")
+
+            # 只有当状态或物流信息真正改变时才更新
+            if new_status != current_status or new_logistics_info != current_logistics_info:
+                # 更新状态
+                if update_logistics_status(record_id, new_status, new_logistics_info, original_row):
+                    success_count += 1
+                    # 使用toast显示成功消息
+                    status_msg = f"状态: {new_status}" if new_status != current_status else ""
+                    info_msg = f"物流信息已更新" if new_logistics_info != current_logistics_info else ""
+                    msg = " | ".join([part for part in [status_msg, info_msg] if part])
+                    if msg:
+                        st.toast(f"✅ {original_row['物资名称']} - {msg}", icon="✅")
+                else:
+                    error_count += 1
+                    st.toast(f"❌ 保存失败: {original_row['物资名称']}", icon="❌")
 
         except (ValueError, KeyError, IndexError) as e:
             st.warning(f"处理行 {row_index_str} 时出错: {str(e)}")
@@ -733,7 +777,7 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
     # 显示处理结果摘要
     if success_count > 0:
         # 使用成功消息但不阻塞界面
-        st.success(f"已自动保存 {success_count} 条状态更改")
+        st.success(f"已自动保存 {success_count} 条更改")
 
         # 3秒后清除成功消息
         time.sleep(3)
@@ -831,36 +875,61 @@ def show_project_selection(df):
 
             valid_projects = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
 
-    selected = st.selectbox(
+    # 创建项目选择列表，包含密码提示
+    project_options = ["中铁物贸成都分公司"] + valid_projects
+    project_display = []
+    for project in project_options:
+        if project in AppConfig.PROJECT_PASSWORDS:
+            project_display.append(f"{project} 🔐")
+        else:
+            project_display.append(f"{project}")
+
+    selected_display = st.selectbox(
         "选择项目部",
-        ["中铁物贸成都分公司"] + valid_projects,
+        project_display,
         key="project_selector"
     )
 
+    # 提取实际项目名称
+    selected_project = selected_display.replace(" 🔐", "")
+
     if st.button("确认进入", type="primary"):
-        if selected == "中铁物贸成都分公司":
-            st.session_state.temp_selected_project = selected
+        # 检查是否需要密码
+        if selected_project in AppConfig.PROJECT_PASSWORDS:
+            st.session_state.temp_selected_project = selected_project
             st.session_state.need_password = True
+            st.session_state.project_password = AppConfig.PROJECT_PASSWORDS[selected_project]
         else:
+            # 对于没有设置密码的项目，直接进入
             st.session_state.project_selected = True
-            st.session_state.selected_project = selected
+            st.session_state.selected_project = selected_project
         st.rerun()
 
+    # 密码验证部分
     if st.session_state.get('need_password', False):
-        password = st.text_input("请输入密码",
-                                 type="password",
-                                 key="password_input")
-        if st.button("验证密码"):
-            if password == "123456":
-                st.session_state.project_selected = True
-                st.session_state.selected_project = st.session_state.temp_selected_project
-                keys_to_remove = ['need_password', 'temp_selected_project']
+        st.info(f"🔐 您正在进入 **{st.session_state.temp_selected_project}**，请输入访问密码")
+        password = st.text_input("请输入密码", type="password", key="password_input")
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("验证密码"):
+                if password == st.session_state.get('project_password', ''):
+                    st.session_state.project_selected = True
+                    st.session_state.selected_project = st.session_state.temp_selected_project
+                    keys_to_remove = ['need_password', 'temp_selected_project', 'project_password']
+                    for key in keys_to_remove:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+                else:
+                    st.error("密码错误，请重新输入")
+        with col2:
+            if st.button("取消"):
+                keys_to_remove = ['need_password', 'temp_selected_project', 'project_password']
                 for key in keys_to_remove:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
-            else:
-                st.error("密码错误，请重新输入")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
