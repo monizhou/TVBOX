@@ -20,7 +20,8 @@ class AppConfig:
         r"D:\PyCharm\PycharmProjects\project\发货计划（宜宾项目）汇总.xlsx"
     ]
 
-    LOGISTICS_SHEET_NAME = "物流明细"
+    # 可能的物流工作表名称
+    LOGISTICS_SHEET_NAMES = ["物流明细", "物流信息", "发货明细", "运输明细", "物流数据"]
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "收货地址", "联系人", "联系方式", "项目部",
@@ -41,44 +42,6 @@ class AppConfig:
     # 更新状态选项，包含完整的发货流程
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
-    
-    # 项目密码配置
-    PROJECT_PASSWORDS = {
-        "中铁物贸成都分公司": "123456",
-         # 新添加的项目标段
-    "华西简阳西城嘉苑": "ztwm428591",
-    "华西酒城南": "ztwm730264",
-    "华西萌海-科创农业生态谷": "ztwm159837",
-    "华西颐海-科创农业生态谷": "ztwm642083",
-    "乐山市校地共建产教融合基地建设项目二标段": "ztwm375920",
-    "乐山市校地共建产教融合基地建设项目一标段": "ztwm846215",
-    "商投建工达州中医药科技园": "ztwm503749",
-    "四川商建射洪城乡一体化项目": "ztwm927461",
-    "五冶达州新材料产业园": "ztwm684032",
-    "五冶钢构达州市公共卫生临床医疗中心项目": "ztwm215796",
-    "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目二标段": "ztwm470358",
-    "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目三标段": "ztwm839174",
-    "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目一标段": "ztwm562901",
-    "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目二标段": "ztwm193847",
-    "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目三标段": "ztwm726489",
-    "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目一标段": "ztwm450163",
-    "五冶钢构南充医学科学产业园建设项目": "ztwm987312",
-    "五冶钢构-宜宾市南溪区高县月江镇建设项目": "ztwm634890",
-    "五冶建设成都国际铁路港多式联项目": "ztwm271548",
-    "五冶建设成都盐道街中学初中部改扩建工程-二标": "ztwm905673",
-    "五冶建设成都盐道街中学初中部改扩建工程-一标": "ztwm348126",
-    "五冶建设锦江区林家坝片区20号地块商业项目": "ztwm782954",
-    "五冶建设空港兴城怡心街道83亩项目": "ztwm516709",
-    "五冶建设扩建艺体中学二期工程": "ztwm249835",
-    "五冶建设龙泉芙蓉花语项目": "ztwm673492",
-    "五冶建设龙泉驿一医院配套建设工程": "ztwm820145",
-    "五冶建设师大附中外语校新建教学楼工程": "ztwm457813",
-    "武汉电气化局成达万高铁强电项目": "ztwm190627",
-    "宜宾兴港三江新区长江工业园建设项目": "ztwm734298",
-    "中铁科研院宜宾泥溪项目": "ztwm568041",
-    "中铁三局集团西渝高铁康渝段站房四标工程": "ztwm392765"
-        # 可以继续添加其他项目部的密码
-    }
 
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
@@ -428,11 +391,45 @@ def load_logistics_data():
 
     try:
         with st.spinner("正在加载物流数据..."):
-            # 尝试读取物流明细表
+            # 尝试读取所有可能的工作表名称
+            df = None
+            found_sheet = None
+            
+            # 首先尝试获取所有工作表名称
             try:
-                df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
+                excel_file = pd.ExcelFile(data_path, engine='openpyxl')
+                sheet_names = excel_file.sheet_names
+                st.info(f"发现的工作表: {', '.join(sheet_names)}")
+                
+                # 尝试匹配物流工作表
+                for sheet_name in sheet_names:
+                    for possible_name in AppConfig.LOGISTICS_SHEET_NAMES:
+                        if possible_name in sheet_name:
+                            found_sheet = sheet_name
+                            st.success(f"找到物流工作表: {found_sheet}")
+                            break
+                    if found_sheet:
+                        break
+                
+                # 如果没有找到匹配的工作表，使用第一个工作表
+                if not found_sheet and sheet_names:
+                    found_sheet = sheet_names[0]
+                    st.warning(f"未找到标准物流工作表，使用第一个工作表: {found_sheet}")
+                
             except Exception as e:
-                st.warning(f"未找到'{AppConfig.LOGISTICS_SHEET_NAME}'工作表: {str(e)}")
+                st.error(f"读取Excel文件结构失败: {str(e)}")
+                return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
+            
+            if not found_sheet:
+                st.error("Excel文件中没有找到任何工作表")
+                return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
+            
+            # 读取选定的工作表
+            try:
+                df = pd.read_excel(data_path, sheet_name=found_sheet, engine='openpyxl')
+                st.success(f"成功读取工作表: {found_sheet}")
+            except Exception as e:
+                st.error(f"读取工作表 {found_sheet} 失败: {str(e)}")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
             # 如果找不到物流明细表，返回空DataFrame
@@ -440,13 +437,47 @@ def load_logistics_data():
                 st.warning("物流明细表为空")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
+            # 显示原始列名以便调试
+            st.info(f"原始列名: {list(df.columns)}")
+
+            # 列名映射 - 处理可能的列名变体
+            column_mapping = {}
+            expected_columns = AppConfig.LOGISTICS_COLUMNS
+            
+            for expected_col in expected_columns:
+                # 尝试精确匹配
+                if expected_col in df.columns:
+                    column_mapping[expected_col] = expected_col
+                    continue
+                
+                # 尝试模糊匹配
+                found = False
+                for actual_col in df.columns:
+                    # 忽略大小写和空格差异
+                    if (expected_col.lower().replace(" ", "") in actual_col.lower().replace(" ", "") or
+                        actual_col.lower().replace(" ", "") in expected_col.lower().replace(" ", "")):
+                        column_mapping[expected_col] = actual_col
+                        found = True
+                        st.info(f"列名映射: '{actual_col}' -> '{expected_col}'")
+                        break
+                
+                if not found:
+                    st.warning(f"未找到匹配 '{expected_col}' 的列")
+                    # 添加空列
+                    df[expected_col] = "" if expected_col != "数量" else 0
+
+            # 重命名列
+            df = df.rename(columns={v: k for k, v in column_mapping.items() if k != v})
+
             # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
                     if col == "物流信息":
                         df[col] = ""  # 物流信息列默认为空字符串
+                    elif col == "数量":
+                        df[col] = 0   # 数量列默认为0
                     else:
-                        df[col] = "" if col != "数量" else 0
+                        df[col] = ""   # 其他文本列默认为空字符串
 
             # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
@@ -851,130 +882,12 @@ def display_metrics_cards(filtered_df):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-def show_project_selection(df):
-    st.markdown("""
-    <div class="welcome-header">
-        欢迎使用钢筋发货监控系统
-    </div>
-    <div class="welcome-subheader">
-        中铁物贸成都分公司 - 四川经营中心
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""
-        <div class="home-card">
-            <div class="home-card-icon">🏗️</div>
-            <div class="home-card-title">项目监控</div>
-            <div class="home-card-content">
-                实时监控各项目钢筋发货情况，确保工程进度顺利推进。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="home-card">
-            <div class="home-card-icon">🚚</div>
-            <div class="home-card-title">物流跟踪</div>
-            <div class="home-card-content">
-                跟踪钢材物流状态，及时掌握物资到货情况。
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown('<div class="project-selector">', unsafe_allow_html=True)
-
-    with st.spinner("加载项目部信息..."):
-        logistics_df = load_logistics_data()
-        valid_projects = []
-
-        if not logistics_df.empty:
-            current_date = datetime.now().date()
-            start_date = current_date - timedelta(days=15)
-            end_date = current_date + timedelta(days=15)
-
-            logistics_df = logistics_df.dropna(subset=['交货时间'])
-            logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
-
-            mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
-            filtered_logistics = logistics_df[mask]
-
-            valid_projects = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
-
-    # 创建项目选择列表，包含密码提示
-    project_options = ["中铁物贸成都分公司"] + valid_projects
-    project_display = []
-    for project in project_options:
-        if project in AppConfig.PROJECT_PASSWORDS:
-            project_display.append(f"{project} 🔐")
-        else:
-            project_display.append(f"{project}")
-
-    selected_display = st.selectbox(
-        "选择项目部",
-        project_display,
-        key="project_selector"
-    )
-
-    # 提取实际项目名称
-    selected_project = selected_display.replace(" 🔐", "")
-
-    if st.button("确认进入", type="primary"):
-        # 检查是否需要密码
-        if selected_project in AppConfig.PROJECT_PASSWORDS:
-            st.session_state.temp_selected_project = selected_project
-            st.session_state.need_password = True
-            st.session_state.project_password = AppConfig.PROJECT_PASSWORDS[selected_project]
-        else:
-            # 对于没有设置密码的项目，直接进入
-            st.session_state.project_selected = True
-            st.session_state.selected_project = selected_project
-        st.rerun()
-
-    # 密码验证部分
-    if st.session_state.get('need_password', False):
-        st.info(f"🔐 您正在进入 **{st.session_state.temp_selected_project}**，请输入访问密码")
-        password = st.text_input("请输入密码", type="password", key="password_input")
-        
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("验证密码"):
-                if password == st.session_state.get('project_password', ''):
-                    st.session_state.project_selected = True
-                    st.session_state.selected_project = st.session_state.temp_selected_project
-                    keys_to_remove = ['need_password', 'temp_selected_project', 'project_password']
-                    for key in keys_to_remove:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
-                else:
-                    st.error("密码错误，请重新输入")
-        with col2:
-            if st.button("取消"):
-                keys_to_remove = ['need_password', 'temp_selected_project', 'project_password']
-                for key in keys_to_remove:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("🔄 刷新数据"):
-            with st.spinner("刷新数据中..."):
-                st.cache_data.clear()
-                st.rerun()
-    with col2:
-        if st.button("← 返回"):
-            st.session_state.project_selected = False
+    if st.button("🔄 刷新数据"):
+        with st.spinner("刷新数据中..."):
+            st.cache_data.clear()
             st.rerun()
 
     tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
@@ -1067,22 +980,20 @@ def main():
     )
     apply_card_styles()
 
-    if 'project_selected' not in st.session_state:
-        st.session_state.project_selected = False
+    # 从URL参数获取项目名称
+    query_params = st.experimental_get_query_params()
+    project_name = query_params.get("project", ["中铁物贸成都分公司"])[0]
+    
+    # 设置默认项目
     if 'selected_project' not in st.session_state:
-        st.session_state.selected_project = "中铁物贸成都分公司"
+        st.session_state.selected_project = project_name
 
     with st.spinner('加载数据中...'):
         df = load_data()
 
-    if not st.session_state.project_selected:
-        show_project_selection(df)
-    else:
-        show_data_panel(df, st.session_state.selected_project)
+    # 直接显示数据面板，无需选择
+    show_data_panel(df, st.session_state.selected_project)
 
 
 if __name__ == "__main__":
     main()
-
-
-
