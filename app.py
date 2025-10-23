@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版"""
+"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版 - 手机端优化版"""
 import os
 import re
 import time
@@ -21,10 +21,15 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
+    # 手机端显示的列
+    MOBILE_DISPLAY_COLUMNS = [
+        "钢厂", "物资名称", "规格型号", "数量", "收货地址", "联系人", "到货状态", "备注"
+    ]
+    # 完整列定义（用于数据处理）
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "收货地址", "联系人", "联系方式", "项目部",
-        "到货状态", "备注"  # 保留到货状态和备注列
+        "到货状态", "备注"
     ]
 
     DATE_FORMAT = "%Y-%m-%d"
@@ -160,7 +165,7 @@ def apply_card_styles():
                         inset 0 0 0 1px rgba(0, 0, 0, 0.06);
         }}
 
-        /* 适配移动端 */
+        /* 移动端优化样式 */
         @media (max-width: 768px) {{
             .stTabs [data-baseweb="tab-list"] {{
                 flex-wrap: wrap;
@@ -169,6 +174,26 @@ def apply_card_styles():
                 flex: 1 1 45%;
                 margin: 4px !important;
                 text-align: center;
+                padding: 10px 16px !important;
+                font-size: 13px;
+            }}
+            
+            /* 表格列宽优化 */
+            .stDataFrame [data-testid="stDataFrameResizable"] {{
+                overflow-x: auto;
+            }}
+            
+            /* 隐藏不必要的列 */
+            .mobile-hidden {{
+                display: none;
+            }}
+            
+            /* 优化数据编辑器列宽 */
+            .stDataFrame [data-testid="stDataFrameResizable"] th,
+            .stDataFrame [data-testid="stDataFrameResizable"] td {{
+                min-width: 60px;
+                max-width: 120px;
+                word-break: break-word;
             }}
         }}
         {AppConfig.CARD_STYLES['number_animation']}
@@ -770,11 +795,11 @@ def show_logistics_tab(project):
             batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
             
             with batch_col1:
-                # 多选下拉框选择记录
+                # 多选下拉框选择记录 - 使用手机端显示列生成选项
                 record_options = []
                 record_mapping = {}
                 for idx, row in filtered_df.iterrows():
-                    display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
+                    display_text = f"{row['钢厂']} | {row['物资名称']} | {row['规格型号']} | {row['数量']}吨"
                     record_options.append(display_text)
                     record_mapping[display_text] = row['record_id']
                 
@@ -828,45 +853,66 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id）
-            display_columns = [col for col in filtered_df.columns if col != "record_id"]
-            display_df = filtered_df[display_columns].copy()
+            # 手机端显示列 - 只显示指定的列
+            mobile_display_columns = [col for col in AppConfig.MOBILE_DISPLAY_COLUMNS if col in filtered_df.columns]
+            mobile_display_columns = [col for col in mobile_display_columns if col != "record_id"]
+            
+            # 准备显示的列（排除record_id，只显示手机端需要的列）
+            display_df = filtered_df[mobile_display_columns].copy()
 
             # 重置索引以确保一致性
             display_df = display_df.reset_index(drop=True)
 
-            # 使用自动保存的数据编辑器
+            # 使用自动保存的数据编辑器 - 手机端优化
             st.markdown("**物流明细表** (状态更改会自动保存)")
+            
+            # 配置列属性
+            column_config = {
+                "到货状态": st.column_config.SelectboxColumn(
+                    "到货状态",
+                    options=AppConfig.STATUS_OPTIONS,
+                    default="公司统筹中",
+                    required=True,
+                    width="medium"
+                ),
+                "备注": st.column_config.TextColumn(
+                    "备注",
+                    help="可自由编辑的备注信息",
+                    width="large"
+                ),
+                "数量": st.column_config.NumberColumn(
+                    "数量",
+                    format="%d",
+                    width=80
+                ),
+                "钢厂": st.column_config.TextColumn(
+                    "钢厂",
+                    width=120
+                ),
+                "物资名称": st.column_config.TextColumn(
+                    "物资名称",
+                    width=150
+                ),
+                "规格型号": st.column_config.TextColumn(
+                    "规格型号",
+                    width=120
+                ),
+                "收货地址": st.column_config.TextColumn(
+                    "收货地址",
+                    width=200
+                ),
+                "联系人": st.column_config.TextColumn(
+                    "联系人",
+                    width=100
+                )
+            }
+
+            # 创建数据编辑器
             edited_df = st.data_editor(
                 display_df,
                 use_container_width=True,
                 hide_index=True,
-                column_config={
-                    "到货状态": st.column_config.SelectboxColumn(
-                        "到货状态",
-                        options=AppConfig.STATUS_OPTIONS,
-                        default="公司统筹中",
-                        required=True,
-                        width="medium"
-                    ),
-                    "备注": st.column_config.TextColumn(
-                        "备注",
-                        help="可自由编辑的备注信息",
-                        width="large"
-                    ),
-                    "数量": st.column_config.NumberColumn(
-                        "数量",
-                        format="%d",
-                        width=90  # 设置列宽为9
-                    ),
-                    "交货时间": st.column_config.DatetimeColumn(
-                        "交货时间",
-                        format="YYYY-MM-DD HH:mm",
-                        width="medium"
-                    ),
-                    **{col: {"width": "auto"} for col in display_columns if
-                       col not in ["到货状态", "备注", "数量", "交货时间"]}
-                },
+                column_config=column_config,
                 key=f"logistics_editor_{project}"
             )
 
@@ -1213,4 +1259,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
