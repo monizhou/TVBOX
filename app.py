@@ -80,7 +80,7 @@ def find_data_file():
     """查找数据文件，增强版本"""
     for path in AppConfig.DATA_PATHS:
         if os.path.exists(path):
-            # 静默找到文件，不显示成功提示
+            st.success(f"✅ 找到数据文件: {os.path.basename(path)}")
             return path
 
     # 如果没有找到配置的文件，列出当前目录下的所有Excel文件供选择
@@ -266,6 +266,22 @@ def apply_card_styles():
         }}
         .dataframe {{
             animation: fadeIn 0.6s ease-out;
+        }}
+        
+        /* 批量更新样式 */
+        .batch-update-card {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }}
+        .batch-update-title {{
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #2c3e50;
         }}
     </style>
     """, unsafe_allow_html=True)
@@ -456,6 +472,9 @@ def load_logistics_status():
                     status_df["record_id"] = ""
                 if "update_time" not in status_df.columns:
                     status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
+                # 移除物流信息列
+                if "物流信息" in status_df.columns:
+                    status_df = status_df.drop(columns=["物流信息"])
                 return status_df
         except Exception as e:
             st.error(f"加载物流状态文件失败: {str(e)}")
@@ -476,12 +495,11 @@ def save_logistics_status(status_df):
 def merge_logistics_with_status(logistics_df):
     """合并物流数据和状态数据"""
     if logistics_df.empty:
-        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
         return logistics_df
 
     status_df = load_logistics_status()
     if status_df.empty:
-        logistics_df["到货状态"] = "公司统筹中"
+        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
         return logistics_df
 
     # 确保status_df包含必要的列
@@ -557,6 +575,68 @@ def update_logistics_status(record_id, new_status, original_row=None):
     except Exception as e:
         st.error(f"更新状态时出错: {str(e)}")
         return False
+
+
+def batch_update_logistics_status(record_ids, new_status, original_rows=None):
+    """批量更新物流状态"""
+    try:
+        status_df = load_logistics_status()
+        
+        if new_status is None:
+            new_status = "公司统筹中"
+        new_status = str(new_status).strip()
+
+        success_count = 0
+        error_count = 0
+        
+        for i, record_id in enumerate(record_ids):
+            try:
+                original_row = original_rows[i] if original_rows and i < len(original_rows) else None
+                
+                send_notification = False
+                if new_status == "未到货":
+                    existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
+                    if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
+                        send_notification = True
+
+                if record_id in status_df["record_id"].values:
+                    status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
+                    status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
+                        AppConfig.DATE_FORMAT)
+                else:
+                    new_record = pd.DataFrame([{
+                        "record_id": record_id,
+                        "到货状态": new_status,
+                        "update_time": datetime.now().strftime(AppConfig.DATE_FORMAT)
+                    }])
+                    status_df = pd.concat([status_df, new_record], ignore_index=True)
+
+                if send_notification and original_row is not None:
+                    material_info = {
+                        "物资名称": original_row["物资名称"],
+                        "规格型号": original_row["规格型号"],
+                        "数量": original_row["数量"],
+                        "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(
+                            original_row["交货时间"]) else "未知",
+                        "项目部": original_row["项目部"]
+                    }
+                    send_feishu_notification(material_info)
+                
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                st.error(f"更新记录 {record_id} 时出错: {str(e)}")
+                continue
+
+        if save_logistics_status(status_df):
+            return success_count, error_count
+        else:
+            return 0, len(record_ids)
+            
+    except Exception as e:
+        st.error(f"批量更新状态时出错: {str(e)}")
+        return 0, len(record_ids)
 
 
 # ==================== URL参数处理 ====================
@@ -679,6 +759,74 @@ def show_logistics_tab(project):
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
+
+            # =============== 批量更新功能 ===============
+            st.markdown("""
+            <div class="batch-update-card">
+                <div class="batch-update-title">📦 批量更新到货状态</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
+            
+            with batch_col1:
+                # 多选下拉框选择记录
+                record_options = []
+                record_mapping = {}
+                for idx, row in filtered_df.iterrows():
+                    display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
+                    record_options.append(display_text)
+                    record_mapping[display_text] = row['record_id']
+                
+                selected_records = st.multiselect(
+                    "选择要批量更新的记录",
+                    options=record_options,
+                    placeholder="选择多条记录进行批量更新..."
+                )
+            
+            with batch_col2:
+                # 选择新状态
+                new_status = st.selectbox(
+                    "选择新的到货状态",
+                    options=AppConfig.STATUS_OPTIONS,
+                    index=0,
+                    key="batch_status"
+                )
+            
+            with batch_col3:
+                st.write("")  # 空行用于对齐
+                st.write("")  # 空行用于对齐
+                batch_update_btn = st.button(
+                    "🚀 批量更新",
+                    type="primary",
+                    use_container_width=True,
+                    key="batch_update_btn"
+                )
+            
+            # 处理批量更新
+            if batch_update_btn and selected_records:
+                if not selected_records:
+                    st.warning("请先选择要更新的记录")
+                else:
+                    record_ids = [record_mapping[record] for record in selected_records]
+                    original_rows = [filtered_df[filtered_df['record_id'] == record_id].iloc[0] for record_id in record_ids]
+                    
+                    with st.spinner(f"正在批量更新 {len(record_ids)} 条记录..."):
+                        success_count, error_count = batch_update_logistics_status(
+                            record_ids, 
+                            new_status,
+                            original_rows
+                        )
+                    
+                    if success_count > 0:
+                        st.success(f"✅ 成功更新 {success_count} 条记录的状态为【{new_status}】")
+                        if error_count > 0:
+                            st.error(f"❌ 有 {error_count} 条记录更新失败")
+                        
+                        # 清空选择
+                        st.rerun()
+                    else:
+                        st.error("❌ 批量更新失败，请重试")
 
             # 准备显示的列（排除record_id）
             display_columns = [col for col in filtered_df.columns if col != "record_id"]
@@ -1008,8 +1156,8 @@ def show_data_panel(df, project):
                             axis=1
                         ),
                         use_container_width=True,
+                        height=min(600, 35 * len(display_df) + 40),
                         hide_index=True
-                        # 移除了height参数，让表格完全自适应
                     )
 
                     st.markdown("""
@@ -1064,3 +1212,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
