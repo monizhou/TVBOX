@@ -80,7 +80,7 @@ def find_data_file():
     """查找数据文件，增强版本"""
     for path in AppConfig.DATA_PATHS:
         if os.path.exists(path):
-            # 静默返回，不显示成功提示
+            st.success(f"✅ 找到数据文件: {os.path.basename(path)}")
             return path
 
     # 如果没有找到配置的文件，列出当前目录下的所有Excel文件供选择
@@ -88,11 +88,13 @@ def find_data_file():
     if current_dir:
         excel_files = [f for f in os.listdir(current_dir) if f.endswith(('.xlsx', '.xls', '.xlsm'))]
         if excel_files:
+            st.warning(f"未找到配置的数据文件，但发现以下Excel文件: {', '.join(excel_files)}")
             # 尝试使用第一个Excel文件
             first_excel = os.path.join(current_dir, excel_files[0])
+            st.info(f"尝试使用: {excel_files[0]}")
             return first_excel
 
-    # 静默返回None
+    st.error("❌ 未找到任何Excel数据文件")
     return None
 
 
@@ -117,29 +119,25 @@ def apply_card_styles():
             padding: 1rem;
         }}
 
-        /* 苹果风格标签页 - 移动端优化 */
+        /* 苹果风格标签页 */
         .stTabs [data-baseweb="tab-list"] {{
-            gap: 4px;
-            padding: 6px 0;
+            gap: 8px;
+            padding: 8px 0;
             background: #f5f5f7;
             border-radius: 12px;
             margin: 1rem 0;
-            overflow-x: auto;
-            white-space: nowrap;
         }}
 
         .stTabs [data-baseweb="tab"] {{
             background: transparent !important;
-            padding: 10px 16px !important;
+            padding: 12px 24px !important;
             border: none !important;
             color: #86868b !important;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
             transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             border-radius: 8px;
-            margin: 0 2px !important;
-            min-width: auto;
-            flex-shrink: 0;
+            margin: 0 4px !important;
         }}
 
         .stTabs [data-baseweb="tab"]:hover {{
@@ -162,108 +160,17 @@ def apply_card_styles():
                         inset 0 0 0 1px rgba(0, 0, 0, 0.06);
         }}
 
-        /* 移动端优化 */
+        /* 适配移动端 */
         @media (max-width: 768px) {{
-            /* 卡片容器在移动端的布局 */
-            .metric-container {{
-                grid-template-columns: repeat(2, 1fr) !important;
-                gap: 0.5rem !important;
+            .stTabs [data-baseweb="tab-list"] {{
+                flex-wrap: wrap;
             }}
-            
-            /* 卡片样式在移动端 */
-            .metric-card {{
-                padding: 0.8rem !important;
-                min-height: auto !important;
-            }}
-            
-            .card-value {{
-                font-size: 1.3rem !important;
-                margin: 0.3rem 0 !important;
-            }}
-            
-            /* 表格容器滚动 */
-            .table-container {{
-                overflow-x: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-            }}
-            
-            /* 调整列宽以适应移动端 */
-            [data-testid="stDataFrame"] {{
-                width: 100% !important;
-                min-width: 600px !important;
-            }}
-            
-            /* 欢迎标题在移动端 */
-            .welcome-header {{
-                font-size: 2rem !important;
-                text-align: center;
-            }}
-            
-            .welcome-subheader {{
-                font-size: 1rem !important;
-                text-align: center;
-            }}
-            
-            /* 主页卡片在移动端 */
-            .home-card {{
-                padding: 1rem !important;
-                margin-bottom: 1rem !important;
-            }}
-            
-            .home-card-title {{
-                font-size: 1.2rem !important;
-            }}
-            
-            .home-card-content {{
-                font-size: 0.9rem !important;
-            }}
-            
-            /* 数据编辑器在移动端 */
-            [data-testid="stDataFrameResizable"] {{
-                min-width: 600px !important;
-            }}
-            
-            /* 列配置优化 */
-            .stDataFrame {{
-                font-size: 12px !important;
-            }}
-            
-            /* 按钮在移动端 */
-            .stButton button {{
-                width: 100% !important;
-            }}
-            
-            /* 选择框在移动端 */
-            .stSelectbox {{
-                font-size: 14px !important;
-            }}
-            
-            /* 批量更新卡片在移动端 */
-            .batch-update-card {{
-                padding: 1rem !important;
-            }}
-            
-            .batch-update-title {{
-                font-size: 1rem !important;
-            }}
-        }}
-
-        /* 适配超小屏幕 */
-        @media (max-width: 480px) {{
-            .metric-container {{
-                grid-template-columns: 1fr !important;
-            }}
-            
-            .welcome-header {{
-                font-size: 1.8rem !important;
-            }}
-            
             .stTabs [data-baseweb="tab"] {{
-                padding: 8px 12px !important;
-                font-size: 10px !important;
+                flex: 1 1 45%;
+                margin: 4px !important;
+                text-align: center;
             }}
         }}
-
         {AppConfig.CARD_STYLES['number_animation']}
         {AppConfig.CARD_STYLES['floating_animation']}
         {AppConfig.CARD_STYLES['pulse_animation']}
@@ -275,36 +182,31 @@ def apply_card_styles():
 
         .metric-container {{ 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-            gap: 0.8rem; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 1rem; 
             margin: 1rem 0; 
             animation: fadeIn 0.6s ease-out;
         }}
         .metric-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
             transition: all 0.3s ease;
-            padding: 1.2rem;
-            min-height: 90px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 1.5rem;
         }}
         .metric-card:hover {{
-            transform: translateY(-3px);
+            transform: translateY(-5px);
             box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
         }}
         .card-value {{
-            font-size: 1.6rem;
+            font-size: 2rem;
             font-weight: 700;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: countup 0.8s ease-out;
-            margin: 0.3rem 0;
-            line-height: 1.2;
+            margin: 0.5rem 0;
         }}
         .card-unit {{
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             color: #666;
         }}
         .overdue-row {{ background-color: #ffdddd !important; }}
@@ -314,50 +216,51 @@ def apply_card_styles():
 
         .home-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
-            padding: 1.2rem;
-            margin-bottom: 1.2rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
             transition: all 0.3s ease;
+            animation: floating 4s ease-in-out infinite;
         }}
         .home-card:hover {{
-            transform: translateY(-3px);
+            animation: pulse 1.5s infinite;
             box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
         }}
         .home-card-title {{
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             font-weight: bold;
-            margin-bottom: 0.8rem;
+            margin-bottom: 1rem;
             color: #2c3e50;
             border-bottom: 2px solid rgba(44, 62, 80, 0.1);
             padding-bottom: 0.5rem;
         }}
         .home-card-content {{
-            font-size: 0.95rem;
-            line-height: 1.5;
+            font-size: 1rem;
+            line-height: 1.6;
             color: #555;
         }}
         .home-card-icon {{
-            font-size: 2rem;
-            margin-bottom: 0.8rem;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
             color: #3498db;
         }}
         .project-selector {{
-            margin-top: 1.5rem;
-            margin-bottom: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
         }}
         .welcome-header {{
-            font-size: 2.5rem;
+            font-size: 3.5rem;
             font-weight: bold;
-            margin-bottom: 0.8rem;
+            margin-bottom: 1rem;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-align: center;
         }}
         .welcome-subheader {{
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             text-align: center;
             color: #666;
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
             position: relative;
             padding-bottom: 0.5rem;
         }}
@@ -365,36 +268,19 @@ def apply_card_styles():
             animation: fadeIn 0.6s ease-out;
         }}
         
-        /* 表格滚动容器 */
-        .table-container {{
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin: 1rem 0;
-        }}
-        
-        /* 数据编辑器样式优化 */
-        .stDataFrame {{
-            font-size: 13px;
-        }}
-        
-        /* 列配置优化 */
-        [data-testid="stDataFrameResizable"] {{
-            min-width: 800px;
-        }}
-        
         /* 批量更新样式 */
         .batch-update-card {{
             background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
-            padding: 1.2rem;
-            margin: 1.2rem 0;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border-left: 4px solid #3498db;
         }}
         .batch-update-title {{
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             font-weight: bold;
-            margin-bottom: 0.8rem;
+            margin-bottom: 1rem;
             color: #2c3e50;
         }}
     </style>
@@ -453,6 +339,7 @@ def send_feishu_notification(material_info):
         )
         return response.status_code == 200
     except Exception as e:
+        st.error(f"飞书通知发送失败: {str(e)}")
         return False
 
 
@@ -467,6 +354,7 @@ def load_data():
 
     data_path = find_data_file()
     if not data_path:
+        st.error("❌ 未找到发货计划数据文件")
         return pd.DataFrame()
 
     try:
@@ -482,6 +370,7 @@ def load_data():
             REQUIRED_COLS = ['标段名称', '物资名称', '下单时间', '需求量']
             missing_cols = [col for col in REQUIRED_COLS if col not in df.columns]
             if missing_cols:
+                st.error(f"缺少必要列: {missing_cols}")
                 return pd.DataFrame()
 
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
@@ -505,6 +394,7 @@ def load_data():
 
             return df
     except Exception as e:
+        st.error(f"数据加载失败: {str(e)}")
         return pd.DataFrame()
 
 
@@ -520,10 +410,12 @@ def load_logistics_data():
             try:
                 df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
             except Exception as e:
+                st.warning(f"未找到'{AppConfig.LOGISTICS_SHEET_NAME}'工作表: {str(e)}")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
             # 如果找不到物流明细表，返回空DataFrame
             if df.empty:
+                st.warning("物流明细表为空")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
             # 确保所有必要的列都存在
@@ -563,6 +455,7 @@ def load_logistics_data():
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
 
     except Exception as e:
+        st.error(f"物流数据加载失败: {str(e)}")
         # 返回一个空的DataFrame，包含必要的列
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
@@ -584,6 +477,7 @@ def load_logistics_status():
                     status_df = status_df.drop(columns=["物流信息"])
                 return status_df
         except Exception as e:
+            st.error(f"加载物流状态文件失败: {str(e)}")
             return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
     return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
 
@@ -594,6 +488,7 @@ def save_logistics_status(status_df):
             status_df.to_csv(AppConfig.LOGISTICS_STATUS_FILE, index=False, encoding='utf-8-sig')
             return True
     except Exception as e:
+        st.error(f"状态保存失败: {str(e)}")
         return False
 
 
@@ -678,6 +573,7 @@ def update_logistics_status(record_id, new_status, original_row=None):
         return False
 
     except Exception as e:
+        st.error(f"更新状态时出错: {str(e)}")
         return False
 
 
@@ -730,6 +626,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                 
             except Exception as e:
                 error_count += 1
+                st.error(f"更新记录 {record_id} 时出错: {str(e)}")
                 continue
 
         if save_logistics_status(status_df):
@@ -738,6 +635,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
             return 0, len(record_ids)
             
     except Exception as e:
+        st.error(f"批量更新状态时出错: {str(e)}")
         return 0, len(record_ids)
 
 
@@ -792,7 +690,7 @@ def get_valid_projects():
 
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-    # 日期选择器布局调整 - 移动端优化
+    # 日期选择器布局调整
     date_col1, date_col2 = st.columns(2)
     with date_col1:
         logistics_start_date = st.date_input(
@@ -837,8 +735,7 @@ def show_logistics_tab(project):
             arrived_count = filtered_df['到货状态'].eq('已到货').sum()
             in_progress_count = total_count - arrived_count - overdue_count
 
-            # 移动端优化：使用2列布局
-            cols = st.columns(2)
+            cols = st.columns(4)
             metrics = [
                 ("📦", "总物流单数", f"{total_count}", "单"),
                 ("✅", "已到货单数", f"{arrived_count}", "单"),
@@ -846,21 +743,18 @@ def show_logistics_tab(project):
                 ("⚠️", "未到货订单", f"{overdue_count}", "单")
             ]
 
-            # 分组显示，每2个指标一组
-            for i in range(0, len(metrics), 2):
-                row_metrics = metrics[i:i+2]
-                with cols[0] if i == 0 else cols[1]:
-                    for metric in row_metrics:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <div style="display:flex; align-items:center; gap:0.5rem;">
-                                <span style="font-size:1.2rem">{metric[0]}</span>
-                                <span style="font-weight:600">{metric[1]}</span>
-                            </div>
-                            <div class="card-value">{metric[2]}</div>
-                            <div class="card-unit">{metric[3]}</div>
+            for idx, metric in enumerate(metrics):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:1.2rem">{metric[0]}</span>
+                            <span style="font-weight:600">{metric[1]}</span>
                         </div>
-                        """, unsafe_allow_html=True)
+                        <div class="card-value">{metric[2]}</div>
+                        <div class="card-unit">{metric[3]}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -873,8 +767,7 @@ def show_logistics_tab(project):
             </div>
             """, unsafe_allow_html=True)
             
-            # 移动端优化：垂直布局
-            batch_col1, batch_col2 = st.columns([2, 1])
+            batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
             
             with batch_col1:
                 # 多选下拉框选择记录
@@ -900,12 +793,15 @@ def show_logistics_tab(project):
                     key="batch_status"
                 )
             
-            batch_update_btn = st.button(
-                "🚀 批量更新",
-                type="primary",
-                use_container_width=True,
-                key="batch_update_btn"
-            )
+            with batch_col3:
+                st.write("")  # 空行用于对齐
+                st.write("")  # 空行用于对齐
+                batch_update_btn = st.button(
+                    "🚀 批量更新",
+                    type="primary",
+                    use_container_width=True,
+                    key="batch_update_btn"
+                )
             
             # 处理批量更新
             if batch_update_btn and selected_records:
@@ -939,9 +835,7 @@ def show_logistics_tab(project):
             # 重置索引以确保一致性
             display_df = display_df.reset_index(drop=True)
 
-            # 使用表格容器包装数据编辑器
-            st.markdown('<div class="table-container">', unsafe_allow_html=True)
-            
+            # 使用自动保存的数据编辑器
             st.markdown("**物流明细表** (状态更改会自动保存)")
             edited_df = st.data_editor(
                 display_df,
@@ -958,25 +852,23 @@ def show_logistics_tab(project):
                     "备注": st.column_config.TextColumn(
                         "备注",
                         help="可自由编辑的备注信息",
-                        width="medium"
+                        width="large"
                     ),
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        width=80
+                        width=90  # 设置列宽为9
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
                         format="YYYY-MM-DD HH:mm",
-                        width="small"
+                        width="medium"
                     ),
-                    **{col: {"width": "small"} for col in display_columns if
+                    **{col: {"width": "auto"} for col in display_columns if
                        col not in ["到货状态", "备注", "数量", "交货时间"]}
                 },
                 key=f"logistics_editor_{project}"
             )
-            
-            st.markdown('</div>', unsafe_allow_html=True)
 
             # 自动处理状态更改
             auto_process_logistics_changes(edited_df, filtered_df, project)
@@ -1033,6 +925,7 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
             # 确保行索引在有效范围内
             row_index = int(row_index_str)
             if row_index < 0 or row_index >= len(original_filtered_df):
+                st.warning(f"跳过无效的行索引: {row_index}")
                 error_count += 1
                 continue
 
@@ -1056,6 +949,7 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
                     st.toast(f"❌ 保存失败: {original_row['物资名称']}", icon="❌")
 
         except (ValueError, KeyError, IndexError) as e:
+            st.warning(f"处理行 {row_index_str} 时出错: {str(e)}")
             error_count += 1
             continue
 
@@ -1083,9 +977,7 @@ def display_metrics_cards(filtered_df):
     max_overdue = filtered_df["超期天数"].max() if overdue > 0 else 0
 
     st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-    
-    # 移动端优化：使用2列布局
-    cols = st.columns(2)
+    cols = st.columns(4)
     metrics = [
         ("📦", "总需求量", f"{total:,}", "吨", "total"),
         ("🚚", "已发货量", f"{shipped:,}", "吨", "shipped"),
@@ -1093,23 +985,19 @@ def display_metrics_cards(filtered_df):
         ("⚠️", "超期订单", f"{overdue}", "单", "overdue", f"最大超期: {max_overdue}天" if overdue > 0 else "")
     ]
 
-    # 分组显示，每2个指标一组
-    for i in range(0, len(metrics), 2):
-        row_metrics = metrics[i:i+2]
-        with cols[0] if i == 0 else cols[1]:
-            for metric in row_metrics:
-                st.markdown(f"""
-                <div class="metric-card {metric[4]}">
-                    <div style="display:flex; align-items:center; gap:0.5rem;">
-                        <span style="font-size:1.2rem">{metric[0]}</span>
-                        <span style="font-weight:600">{metric[1]}</span>
-                    </div>
-                    <div class="card-value">{metric[2]}</div>
-                    <div class="card-unit">{metric[3]}</div>
-                    {f'<div style="font-size:0.7rem; color:#666;">{metric[5]}</div>' if len(metric) > 5 else ''}
+    for idx, metric in enumerate(metrics):
+        with cols[idx]:
+            st.markdown(f"""
+            <div class="metric-card {metric[4]}">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.2rem">{metric[0]}</span>
+                    <span style="font-weight:600">{metric[1]}</span>
                 </div>
-                """, unsafe_allow_html=True)
-    
+                <div class="card-value">{metric[2]}</div>
+                <div class="card-unit">{metric[3]}</div>
+                {f'<div style="font-size:0.8rem; color:#666;">{metric[5]}</div>' if len(metric) > 5 else ''}
+            </div>
+            """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -1123,26 +1011,29 @@ def show_project_selection(df):
     </div>
     """, unsafe_allow_html=True)
 
-    # 移动端优化：垂直排列卡片
-    st.markdown("""
-    <div class="home-card">
-        <div class="home-card-icon">🏗️</div>
-        <div class="home-card-title">项目监控</div>
-        <div class="home-card-content">
-            实时监控各项目钢筋发货情况，确保工程进度顺利推进。
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
 
-    st.markdown("""
-    <div class="home-card">
-        <div class="home-card-icon">🚚</div>
-        <div class="home-card-title">物流跟踪</div>
-        <div class="home-card-content">
-            跟踪钢材物流状态，及时掌握物资到货情况。
+    with col1:
+        st.markdown("""
+        <div class="home-card">
+            <div class="home-card-icon">🏗️</div>
+            <div class="home-card-title">项目监控</div>
+            <div class="home-card-content">
+                实时监控各项目钢筋发货情况，确保工程进度顺利推进。
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div class="home-card">
+            <div class="home-card-icon">🚚</div>
+            <div class="home-card-title">物流跟踪</div>
+            <div class="home-card-content">
+                跟踪钢材物流状态，及时掌握物资到货情况。
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown('<div class="project-selector">', unsafe_allow_html=True)
 
@@ -1169,7 +1060,7 @@ def show_project_selection(df):
         key="project_selector"
     )
 
-    if st.button("确认进入", type="primary", use_container_width=True):
+    if st.button("确认进入", type="primary"):
         if selected == "中铁物贸成都分公司":
             st.session_state.temp_selected_project = selected
             st.session_state.need_password = True
@@ -1182,26 +1073,17 @@ def show_project_selection(df):
         password = st.text_input("请输入密码",
                                  type="password",
                                  key="password_input")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("验证密码", use_container_width=True):
-                if password == "123456":
-                    st.session_state.project_selected = True
-                    st.session_state.selected_project = st.session_state.temp_selected_project
-                    keys_to_remove = ['need_password', 'temp_selected_project']
-                    for key in keys_to_remove:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
-                else:
-                    st.error("密码错误，请重新输入")
-        with col2:
-            if st.button("取消", use_container_width=True):
+        if st.button("验证密码"):
+            if password == "123456":
+                st.session_state.project_selected = True
+                st.session_state.selected_project = st.session_state.temp_selected_project
                 keys_to_remove = ['need_password', 'temp_selected_project']
                 for key in keys_to_remove:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
+            else:
+                st.error("密码错误，请重新输入")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1209,15 +1091,14 @@ def show_project_selection(df):
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
-    # 移动端优化：垂直排列按钮
-    refresh_col, back_col = st.columns(2)
-    with refresh_col:
-        if st.button("🔄 刷新数据", use_container_width=True):
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("🔄 刷新数据"):
             with st.spinner("刷新数据中..."):
                 st.cache_data.clear()
                 st.rerun()
-    with back_col:
-        if st.button("← 返回首页", use_container_width=True):
+    with col2:
+        if st.button("← 返回首页"):
             st.session_state.project_selected = False
             st.rerun()
 
@@ -1261,9 +1142,6 @@ def show_data_panel(df, project):
                     if "材料名称" in display_df.columns:
                         display_df["材料名称"] = display_df["材料名称"].fillna("未指定物资")
 
-                    # 使用表格容器包装数据框
-                    st.markdown('<div class="table-container">', unsafe_allow_html=True)
-                    
                     st.dataframe(
                         display_df.style.format({
                             '需求(吨)': '{:,}',
@@ -1278,11 +1156,9 @@ def show_data_panel(df, project):
                             axis=1
                         ),
                         use_container_width=True,
-                        height=min(400, 35 * len(display_df) + 40),
+                        height=min(600, 35 * len(display_df) + 40),
                         hide_index=True
                     )
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
 
                     st.markdown("""
                     <div class="remark-card plan-remark">
