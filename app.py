@@ -24,7 +24,7 @@ class AppConfig:
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "收货地址", "联系人", "联系方式", "项目部",
-        "到货状态"
+        "到货状态", "备注"  # 保留到货状态和备注列
     ]
 
     DATE_FORMAT = "%Y-%m-%d"
@@ -267,6 +267,22 @@ def apply_card_styles():
         .dataframe {{
             animation: fadeIn 0.6s ease-out;
         }}
+        
+        /* 批量更新样式 */
+        .batch-update-card {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }}
+        .batch-update-title {{
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -446,7 +462,7 @@ def load_logistics_data():
 
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
-    """加载物流状态，包含到货状态和物流信息"""
+    """加载物流状态，只包含到货状态"""
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
         try:
             with st.spinner("加载物流状态..."):
@@ -456,13 +472,14 @@ def load_logistics_status():
                     status_df["record_id"] = ""
                 if "update_time" not in status_df.columns:
                     status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
-                if "物流信息" not in status_df.columns:
-                    status_df["物流信息"] = ""
+                # 移除物流信息列
+                if "物流信息" in status_df.columns:
+                    status_df = status_df.drop(columns=["物流信息"])
                 return status_df
         except Exception as e:
             st.error(f"加载物流状态文件失败: {str(e)}")
-            return pd.DataFrame(columns=["record_id", "到货状态", "物流信息", "update_time"])
-    return pd.DataFrame(columns=["record_id", "到货状态", "物流信息", "update_time"])
+            return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
+    return pd.DataFrame(columns=["record_id", "到货状态", "update_time"])
 
 
 def save_logistics_status(status_df):
@@ -483,25 +500,37 @@ def merge_logistics_with_status(logistics_df):
     status_df = load_logistics_status()
     if status_df.empty:
         logistics_df["到货状态"] = "公司统筹中"  # 默认状态
-        logistics_df["物流信息"] = ""  # 默认物流信息为空
         return logistics_df
 
+    # 确保status_df包含必要的列
+    required_status_cols = ["record_id", "到货状态"]
+    for col in required_status_cols:
+        if col not in status_df.columns:
+            status_df[col] = ""
+    
+    # 执行合并
     merged = pd.merge(
         logistics_df,
-        status_df[["record_id", "到货状态", "物流信息"]],
+        status_df[required_status_cols],
         on="record_id",
         how="left",
         suffixes=("", "_status")
     )
     
-    # 填充默认值
-    merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
-    merged["物流信息"] = merged["物流信息_status"].fillna("")
+    # 安全地填充默认值 - 使用列名检查避免KeyError
+    if "到货状态_status" in merged.columns:
+        merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
+    else:
+        merged["到货状态"] = "公司统筹中"
     
-    return merged.drop(columns=["到货状态_status", "物流信息_status"])
+    # 删除可能不存在的状态列
+    if "到货状态_status" in merged.columns:
+        merged = merged.drop(columns=["到货状态_status"])
+    
+    return merged
 
 
-def update_logistics_status(record_id, new_status, logistics_info=None, original_row=None):
+def update_logistics_status(record_id, new_status, original_row=None):
     """更新物流状态（带错误处理）"""
     try:
         status_df = load_logistics_status()
@@ -509,10 +538,6 @@ def update_logistics_status(record_id, new_status, logistics_info=None, original
         if new_status is None:
             new_status = "公司统筹中"
         new_status = str(new_status).strip()
-        
-        if logistics_info is None:
-            logistics_info = ""
-        logistics_info = str(logistics_info).strip()
 
         send_notification = False
         if new_status == "未到货":
@@ -522,14 +547,12 @@ def update_logistics_status(record_id, new_status, logistics_info=None, original
 
         if record_id in status_df["record_id"].values:
             status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
-            status_df.loc[status_df["record_id"] == record_id, "物流信息"] = logistics_info
             status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
                 AppConfig.DATE_FORMAT)
         else:
             new_record = pd.DataFrame([{
                 "record_id": record_id,
                 "到货状态": new_status,
-                "物流信息": logistics_info,
                 "update_time": datetime.now().strftime(AppConfig.DATE_FORMAT)
             }])
             status_df = pd.concat([status_df, new_record], ignore_index=True)
@@ -552,6 +575,68 @@ def update_logistics_status(record_id, new_status, logistics_info=None, original
     except Exception as e:
         st.error(f"更新状态时出错: {str(e)}")
         return False
+
+
+def batch_update_logistics_status(record_ids, new_status, original_rows=None):
+    """批量更新物流状态"""
+    try:
+        status_df = load_logistics_status()
+        
+        if new_status is None:
+            new_status = "公司统筹中"
+        new_status = str(new_status).strip()
+
+        success_count = 0
+        error_count = 0
+        
+        for i, record_id in enumerate(record_ids):
+            try:
+                original_row = original_rows[i] if original_rows and i < len(original_rows) else None
+                
+                send_notification = False
+                if new_status == "未到货":
+                    existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
+                    if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
+                        send_notification = True
+
+                if record_id in status_df["record_id"].values:
+                    status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
+                    status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
+                        AppConfig.DATE_FORMAT)
+                else:
+                    new_record = pd.DataFrame([{
+                        "record_id": record_id,
+                        "到货状态": new_status,
+                        "update_time": datetime.now().strftime(AppConfig.DATE_FORMAT)
+                    }])
+                    status_df = pd.concat([status_df, new_record], ignore_index=True)
+
+                if send_notification and original_row is not None:
+                    material_info = {
+                        "物资名称": original_row["物资名称"],
+                        "规格型号": original_row["规格型号"],
+                        "数量": original_row["数量"],
+                        "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(
+                            original_row["交货时间"]) else "未知",
+                        "项目部": original_row["项目部"]
+                    }
+                    send_feishu_notification(material_info)
+                
+                success_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                st.error(f"更新记录 {record_id} 时出错: {str(e)}")
+                continue
+
+        if save_logistics_status(status_df):
+            return success_count, error_count
+        else:
+            return 0, len(record_ids)
+            
+    except Exception as e:
+        st.error(f"批量更新状态时出错: {str(e)}")
+        return 0, len(record_ids)
 
 
 # ==================== URL参数处理 ====================
@@ -675,6 +760,74 @@ def show_logistics_tab(project):
 
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
 
+            # =============== 批量更新功能 ===============
+            st.markdown("""
+            <div class="batch-update-card">
+                <div class="batch-update-title">📦 批量更新到货状态</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
+            
+            with batch_col1:
+                # 多选下拉框选择记录
+                record_options = []
+                record_mapping = {}
+                for idx, row in filtered_df.iterrows():
+                    display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
+                    record_options.append(display_text)
+                    record_mapping[display_text] = row['record_id']
+                
+                selected_records = st.multiselect(
+                    "选择要批量更新的记录",
+                    options=record_options,
+                    placeholder="选择多条记录进行批量更新..."
+                )
+            
+            with batch_col2:
+                # 选择新状态
+                new_status = st.selectbox(
+                    "选择新的到货状态",
+                    options=AppConfig.STATUS_OPTIONS,
+                    index=0,
+                    key="batch_status"
+                )
+            
+            with batch_col3:
+                st.write("")  # 空行用于对齐
+                st.write("")  # 空行用于对齐
+                batch_update_btn = st.button(
+                    "🚀 批量更新",
+                    type="primary",
+                    use_container_width=True,
+                    key="batch_update_btn"
+                )
+            
+            # 处理批量更新
+            if batch_update_btn and selected_records:
+                if not selected_records:
+                    st.warning("请先选择要更新的记录")
+                else:
+                    record_ids = [record_mapping[record] for record in selected_records]
+                    original_rows = [filtered_df[filtered_df['record_id'] == record_id].iloc[0] for record_id in record_ids]
+                    
+                    with st.spinner(f"正在批量更新 {len(record_ids)} 条记录..."):
+                        success_count, error_count = batch_update_logistics_status(
+                            record_ids, 
+                            new_status,
+                            original_rows
+                        )
+                    
+                    if success_count > 0:
+                        st.success(f"✅ 成功更新 {success_count} 条记录的状态为【{new_status}】")
+                        if error_count > 0:
+                            st.error(f"❌ 有 {error_count} 条记录更新失败")
+                        
+                        # 清空选择
+                        st.rerun()
+                    else:
+                        st.error("❌ 批量更新失败，请重试")
+
             # 准备显示的列（排除record_id）
             display_columns = [col for col in filtered_df.columns if col != "record_id"]
             display_df = filtered_df[display_columns].copy()
@@ -696,9 +849,9 @@ def show_logistics_tab(project):
                         required=True,
                         width="medium"
                     ),
-                    "物流信息": st.column_config.TextColumn(
-                        "物流信息",
-                        help="可自由编辑的物流跟踪信息",
+                    "备注": st.column_config.TextColumn(
+                        "备注",
+                        help="可自由编辑的备注信息",
                         width="large"
                     ),
                     "数量": st.column_config.NumberColumn(
@@ -712,7 +865,7 @@ def show_logistics_tab(project):
                         width="medium"
                     ),
                     **{col: {"width": "auto"} for col in display_columns if
-                       col not in ["到货状态", "物流信息", "数量", "交货时间"]}
+                       col not in ["到货状态", "备注", "数量", "交货时间"]}
                 },
                 key=f"logistics_editor_{project}"
             )
@@ -755,7 +908,7 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
     new_changes = []
     for row_index_str, changes in changed_rows.items():
         # 生成唯一标识符，包含所有可能更改的字段
-        change_hash = f"{row_index_str}_{changes.get('到货状态', '')}_{changes.get('物流信息', '')}"
+        change_hash = f"{row_index_str}_{changes.get('到货状态', '')}"
         if change_hash not in st.session_state[processed_key]:
             new_changes.append((row_index_str, changes))
             st.session_state[processed_key].add(change_hash)
@@ -779,27 +932,18 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
             record_id = original_filtered_df.iloc[row_index]["record_id"]
             original_row = original_filtered_df.iloc[row_index]
 
-            # 获取新的状态和物流信息
+            # 获取新的状态
             new_status = changes.get("到货状态", original_row["到货状态"])
-            new_logistics_info = changes.get("物流信息", original_row.get("物流信息", ""))
 
-            # 只有当状态或物流信息真正改变时才更新
+            # 只有当状态真正改变时才更新
             status_changed = new_status != original_row["到货状态"]
-            info_changed = new_logistics_info != original_row.get("物流信息", "")
             
-            if status_changed or info_changed:
+            if status_changed:
                 # 更新状态
-                if update_logistics_status(record_id, new_status, new_logistics_info, original_row):
+                if update_logistics_status(record_id, new_status, original_row):
                     success_count += 1
                     # 使用toast显示成功消息
-                    change_desc = []
-                    if status_changed:
-                        change_desc.append(f"状态: {original_row['到货状态']} → {new_status}")
-                    if info_changed:
-                        change_desc.append("物流信息已更新")
-                    
-                    if change_desc:
-                        st.toast(f"✅ 已自动保存: {original_row['物资名称']} - {'; '.join(change_desc)}", icon="✅")
+                    st.toast(f"✅ 已自动保存: {original_row['物资名称']} - 状态: {original_row['到货状态']} → {new_status}", icon="✅")
                 else:
                     error_count += 1
                     st.toast(f"❌ 保存失败: {original_row['物资名称']}", icon="❌")
@@ -1020,6 +1164,7 @@ def show_data_panel(df, project):
                     <div class="remark-card plan-remark">
                         <div class="remark-content">
                             📢 以上计划已全部提报给公司
+                            📢 温馨提示：公司更新发货台账为当天下午6:00 ！！！
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1068,3 +1213,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
