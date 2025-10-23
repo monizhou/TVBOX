@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版 - 响应式列宽版"""
+"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版"""
 import os
 import re
 import time
@@ -21,15 +21,10 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
-    # 手机端显示的列
-    MOBILE_DISPLAY_COLUMNS = [
-        "钢厂", "物资名称", "规格型号", "数量", "收货地址", "联系人", "到货状态", "备注"
-    ]
-    # 完整列定义（用于数据处理）
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "收货地址", "联系人", "联系方式", "项目部",
-        "到货状态", "备注"
+        "到货状态", "备注"  # 保留到货状态和备注列
     ]
 
     DATE_FORMAT = "%Y-%m-%d"
@@ -43,32 +38,9 @@ class AppConfig:
     LOGISTICS_DATE_RANGE_DAYS = 5
 
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
-    # 修改状态选项：取消"公司统筹中"，默认改为"钢厂已接单"，并添加符号
-    STATUS_OPTIONS = ["🏭 钢厂已接单", "🚚 运输装货中", "✅ 已到货", "❌ 未到货"]
+    # 扩展状态选项
+    STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
-
-    # 不同设备的列宽配置
-    DESKTOP_COLUMN_WIDTHS = {
-        "钢厂": 120,
-        "物资名称": 150,
-        "规格型号": 120,
-        "数量": 80,
-        "收货地址": 200,
-        "联系人": 100,
-        "到货状态": 130,
-        "备注": 180
-    }
-    
-    MOBILE_COLUMN_WIDTHS = {
-        "钢厂": 80,
-        "物资名称": 100,
-        "规格型号": 80,
-        "数量": 60,
-        "收货地址": 120,
-        "联系人": 70,
-        "到货状态": 100,
-        "备注": 120
-    }
 
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
@@ -188,7 +160,7 @@ def apply_card_styles():
                         inset 0 0 0 1px rgba(0, 0, 0, 0.06);
         }}
 
-        /* 移动端优化样式 */
+        /* 适配移动端 */
         @media (max-width: 768px) {{
             .stTabs [data-baseweb="tab-list"] {{
                 flex-wrap: wrap;
@@ -197,120 +169,6 @@ def apply_card_styles():
                 flex: 1 1 45%;
                 margin: 4px !important;
                 text-align: center;
-                padding: 10px 16px !important;
-                font-size: 13px;
-            }}
-            
-            /* 表格列宽优化 - 移动端 */
-            .stDataFrame [data-testid="stDataFrameResizable"] {{
-                overflow-x: auto;
-            }}
-            
-            /* 移动端表格列宽设置 */
-            .mobile-table th, .mobile-table td {{
-                min-width: 60px !important;
-                max-width: 120px !important;
-                word-break: break-word;
-                font-size: 12px;
-            }}
-            
-            /* 隐藏不必要的列 */
-            .mobile-hidden {{
-                display: none;
-            }}
-            
-            /* 状态列特殊样式 */
-            .status-cell {{
-                font-weight: bold;
-            }}
-            .status-ordered {{
-                color: #2196F3;
-            }}
-            .status-shipping {{
-                color: #FF9800;
-            }}
-            .status-arrived {{
-                color: #4CAF50;
-            }}
-            .status-not-arrived {{
-                color: #F44336;
-            }}
-            
-            /* 移动端列宽具体设置 */
-            .mobile-table th:nth-child(1), .mobile-table td:nth-child(1) {{ /* 钢厂 */
-                width: 80px !important;
-                min-width: 80px !important;
-            }}
-            .mobile-table th:nth-child(2), .mobile-table td:nth-child(2) {{ /* 物资名称 */
-                width: 100px !important;
-                min-width: 100px !important;
-            }}
-            .mobile-table th:nth-child(3), .mobile-table td:nth-child(3) {{ /* 规格型号 */
-                width: 80px !important;
-                min-width: 80px !important;
-            }}
-            .mobile-table th:nth-child(4), .mobile-table td:nth-child(4) {{ /* 数量 */
-                width: 60px !important;
-                min-width: 60px !important;
-            }}
-            .mobile-table th:nth-child(5), .mobile-table td:nth-child(5) {{ /* 收货地址 */
-                width: 120px !important;
-                min-width: 120px !important;
-            }}
-            .mobile-table th:nth-child(6), .mobile-table td:nth-child(6) {{ /* 联系人 */
-                width: 70px !important;
-                min-width: 70px !important;
-            }}
-            .mobile-table th:nth-child(7), .mobile-table td:nth-child(7) {{ /* 到货状态 */
-                width: 100px !important;
-                min-width: 100px !important;
-            }}
-            .mobile-table th:nth-child(8), .mobile-table td:nth-child(8) {{ /* 备注 */
-                width: 120px !important;
-                min-width: 120px !important;
-            }}
-        }}
-        
-        /* 桌面端样式 */
-        @media (min-width: 769px) {{
-            .desktop-table th, .desktop-table td {{
-                min-width: 80px !important;
-                max-width: 200px !important;
-                word-break: break-word;
-            }}
-            
-            /* 桌面端列宽具体设置 */
-            .desktop-table th:nth-child(1), .desktop-table td:nth-child(1) {{ /* 钢厂 */
-                width: 120px !important;
-                min-width: 120px !important;
-            }}
-            .desktop-table th:nth-child(2), .desktop-table td:nth-child(2) {{ /* 物资名称 */
-                width: 150px !important;
-                min-width: 150px !important;
-            }}
-            .desktop-table th:nth-child(3), .desktop-table td:nth-child(3) {{ /* 规格型号 */
-                width: 120px !important;
-                min-width: 120px !important;
-            }}
-            .desktop-table th:nth-child(4), .desktop-table td:nth-child(4) {{ /* 数量 */
-                width: 80px !important;
-                min-width: 80px !important;
-            }}
-            .desktop-table th:nth-child(5), .desktop-table td:nth-child(5) {{ /* 收货地址 */
-                width: 200px !important;
-                min-width: 200px !important;
-            }}
-            .desktop-table th:nth-child(6), .desktop-table td:nth-child(6) {{ /* 联系人 */
-                width: 100px !important;
-                min-width: 100px !important;
-            }}
-            .desktop-table th:nth-child(7), .desktop-table td:nth-child(7) {{ /* 到货状态 */
-                width: 130px !important;
-                min-width: 130px !important;
-            }}
-            .desktop-table th:nth-child(8), .desktop-table td:nth-child(8) {{ /* 备注 */
-                width: 180px !important;
-                min-width: 180px !important;
             }}
         }}
         {AppConfig.CARD_STYLES['number_animation']}
@@ -641,7 +499,7 @@ def merge_logistics_with_status(logistics_df):
 
     status_df = load_logistics_status()
     if status_df.empty:
-        logistics_df["到货状态"] = "🏭 钢厂已接单"  # 默认状态改为带符号的
+        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
         return logistics_df
 
     # 确保status_df包含必要的列
@@ -661,9 +519,9 @@ def merge_logistics_with_status(logistics_df):
     
     # 安全地填充默认值 - 使用列名检查避免KeyError
     if "到货状态_status" in merged.columns:
-        merged["到货状态"] = merged["到货状态_status"].fillna("🏭 钢厂已接单")
+        merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
     else:
-        merged["到货状态"] = "🏭 钢厂已接单"
+        merged["到货状态"] = "公司统筹中"
     
     # 删除可能不存在的状态列
     if "到货状态_status" in merged.columns:
@@ -678,13 +536,13 @@ def update_logistics_status(record_id, new_status, original_row=None):
         status_df = load_logistics_status()
 
         if new_status is None:
-            new_status = "🏭 钢厂已接单"  # 默认状态改为带符号的
+            new_status = "公司统筹中"
         new_status = str(new_status).strip()
 
         send_notification = False
-        if new_status == "❌ 未到货":
+        if new_status == "未到货":
             existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
-            if len(existing_status) == 0 or existing_status.iloc[0] != "❌ 未到货":
+            if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
                 send_notification = True
 
         if record_id in status_df["record_id"].values:
@@ -725,7 +583,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         status_df = load_logistics_status()
         
         if new_status is None:
-            new_status = "🏭 钢厂已接单"  # 默认状态改为带符号的
+            new_status = "公司统筹中"
         new_status = str(new_status).strip()
 
         success_count = 0
@@ -736,9 +594,9 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                 original_row = original_rows[i] if original_rows and i < len(original_rows) else None
                 
                 send_notification = False
-                if new_status == "❌ 未到货":
+                if new_status == "未到货":
                     existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
-                    if len(existing_status) == 0 or existing_status.iloc[0] != "❌ 未到货":
+                    if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
                         send_notification = True
 
                 if record_id in status_df["record_id"].values:
@@ -831,67 +689,19 @@ def get_valid_projects():
 
 
 # ==================== 页面组件 ====================
-def get_column_config(device_type="desktop"):
-    """根据设备类型获取列配置"""
-    if device_type == "mobile":
-        widths = AppConfig.MOBILE_COLUMN_WIDTHS
-    else:
-        widths = AppConfig.DESKTOP_COLUMN_WIDTHS
-    
-    return {
-        "到货状态": st.column_config.SelectboxColumn(
-            "到货状态",
-            options=AppConfig.STATUS_OPTIONS,
-            default="🏭 钢厂已接单",
-            required=True,
-            width=widths["到货状态"]
-        ),
-        "备注": st.column_config.TextColumn(
-            "备注",
-            help="可自由编辑的备注信息",
-            width=widths["备注"]
-        ),
-        "数量": st.column_config.NumberColumn(
-            "数量",
-            format="%d",
-            width=widths["数量"]
-        ),
-        "钢厂": st.column_config.TextColumn(
-            "钢厂",
-            width=widths["钢厂"]
-        ),
-        "物资名称": st.column_config.TextColumn(
-            "物资名称",
-            width=widths["物资名称"]
-        ),
-        "规格型号": st.column_config.TextColumn(
-            "规格型号",
-            width=widths["规格型号"]
-        ),
-        "收货地址": st.column_config.TextColumn(
-            "收货地址",
-            width=widths["收货地址"]
-        ),
-        "联系人": st.column_config.TextColumn(
-            "联系人",
-            width=widths["联系人"]
-        )
-    }
-
-
 def show_logistics_tab(project):
-    # 日期选择器布局调整 - 默认设置为当天
+    # 日期选择器布局调整
     date_col1, date_col2 = st.columns(2)
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date(),  # 默认设为当天
+            datetime.now().date() - timedelta(days=AppConfig.LOGISTICS_DATE_RANGE_DAYS),
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),  # 默认设为当天
+            datetime.now().date(),
             key="logistics_end"
         )
 
@@ -920,10 +730,9 @@ def show_logistics_tab(project):
             # =============== 统一卡片样式 ===============
             st.markdown('<div class="metric-container">', unsafe_allow_html=True)
 
-            # 更新状态统计逻辑，使用带符号的状态
-            overdue_count = filtered_df['到货状态'].eq('❌ 未到货').sum()
+            overdue_count = filtered_df['到货状态'].eq('未到货').sum()
             total_count = len(filtered_df)
-            arrived_count = filtered_df['到货状态'].eq('✅ 已到货').sum()
+            arrived_count = filtered_df['到货状态'].eq('已到货').sum()
             in_progress_count = total_count - arrived_count - overdue_count
 
             cols = st.columns(4)
@@ -961,11 +770,11 @@ def show_logistics_tab(project):
             batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
             
             with batch_col1:
-                # 多选下拉框选择记录 - 使用手机端显示列生成选项
+                # 多选下拉框选择记录
                 record_options = []
                 record_mapping = {}
                 for idx, row in filtered_df.iterrows():
-                    display_text = f"{row['钢厂']} | {row['物资名称']} | {row['规格型号']} | {row['数量']}吨"
+                    display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
                     record_options.append(display_text)
                     record_mapping[display_text] = row['record_id']
                 
@@ -976,7 +785,7 @@ def show_logistics_tab(project):
                 )
             
             with batch_col2:
-                # 选择新状态 - 使用带符号的状态选项
+                # 选择新状态
                 new_status = st.selectbox(
                     "选择新的到货状态",
                     options=AppConfig.STATUS_OPTIONS,
@@ -1019,28 +828,45 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 手机端显示列 - 只显示指定的列
-            mobile_display_columns = [col for col in AppConfig.MOBILE_DISPLAY_COLUMNS if col in filtered_df.columns]
-            mobile_display_columns = [col for col in mobile_display_columns if col != "record_id"]
-            
-            # 准备显示的列（排除record_id，只显示手机端需要的列）
-            display_df = filtered_df[mobile_display_columns].copy()
+            # 准备显示的列（排除record_id）
+            display_columns = [col for col in filtered_df.columns if col != "record_id"]
+            display_df = filtered_df[display_columns].copy()
 
             # 重置索引以确保一致性
             display_df = display_df.reset_index(drop=True)
 
-            # 使用自动保存的数据编辑器 - 响应式设计
+            # 使用自动保存的数据编辑器
             st.markdown("**物流明细表** (状态更改会自动保存)")
-            
-            # 获取列配置 - 使用桌面端配置，CSS会根据设备类型调整实际宽度
-            column_config = get_column_config("desktop")
-
-            # 创建数据编辑器
             edited_df = st.data_editor(
                 display_df,
                 use_container_width=True,
                 hide_index=True,
-                column_config=column_config,
+                column_config={
+                    "到货状态": st.column_config.SelectboxColumn(
+                        "到货状态",
+                        options=AppConfig.STATUS_OPTIONS,
+                        default="公司统筹中",
+                        required=True,
+                        width="medium"
+                    ),
+                    "备注": st.column_config.TextColumn(
+                        "备注",
+                        help="可自由编辑的备注信息",
+                        width="large"
+                    ),
+                    "数量": st.column_config.NumberColumn(
+                        "数量",
+                        format="%d",
+                        width=90  # 设置列宽为9
+                    ),
+                    "交货时间": st.column_config.DatetimeColumn(
+                        "交货时间",
+                        format="YYYY-MM-DD HH:mm",
+                        width="medium"
+                    ),
+                    **{col: {"width": "auto"} for col in display_columns if
+                       col not in ["到货状态", "备注", "数量", "交货时间"]}
+                },
                 key=f"logistics_editor_{project}"
             )
 
@@ -1310,7 +1136,7 @@ def show_data_panel(df, project):
                         "计划进场时间": "计划进场时间"
                     }
 
-                    available_cols = {k, v for k, v in display_cols.items() if k in date_range_df.columns}
+                    available_cols = {k: v for k, v in display_cols.items() if k in date_range_df.columns}
                     display_df = date_range_df[available_cols.keys()].rename(columns=available_cols)
 
                     if "材料名称" in display_df.columns:
@@ -1387,3 +1213,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
