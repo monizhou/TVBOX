@@ -43,8 +43,8 @@ class AppConfig:
     LOGISTICS_DATE_RANGE_DAYS = 5
 
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
-    # 扩展状态选项
-    STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
+    # 修改状态选项：取消"公司统筹中"，默认改为"钢厂已接单"，并添加符号
+    STATUS_OPTIONS = ["🏭 钢厂已接单", "🚚 运输装货中", "✅ 已到货", "❌ 未到货"]
     PROJECT_COLUMN = "项目部名称"
 
     CARD_STYLES = {
@@ -194,6 +194,23 @@ def apply_card_styles():
                 min-width: 60px;
                 max-width: 120px;
                 word-break: break-word;
+            }}
+            
+            /* 状态列特殊样式 */
+            .status-cell {{
+                font-weight: bold;
+            }}
+            .status-ordered {{
+                color: #2196F3;
+            }}
+            .status-shipping {{
+                color: #FF9800;
+            }}
+            .status-arrived {{
+                color: #4CAF50;
+            }}
+            .status-not-arrived {{
+                color: #F44336;
             }}
         }}
         {AppConfig.CARD_STYLES['number_animation']}
@@ -524,7 +541,7 @@ def merge_logistics_with_status(logistics_df):
 
     status_df = load_logistics_status()
     if status_df.empty:
-        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
+        logistics_df["到货状态"] = "🏭 钢厂已接单"  # 默认状态改为带符号的
         return logistics_df
 
     # 确保status_df包含必要的列
@@ -544,9 +561,9 @@ def merge_logistics_with_status(logistics_df):
     
     # 安全地填充默认值 - 使用列名检查避免KeyError
     if "到货状态_status" in merged.columns:
-        merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
+        merged["到货状态"] = merged["到货状态_status"].fillna("🏭 钢厂已接单")
     else:
-        merged["到货状态"] = "公司统筹中"
+        merged["到货状态"] = "🏭 钢厂已接单"
     
     # 删除可能不存在的状态列
     if "到货状态_status" in merged.columns:
@@ -561,13 +578,13 @@ def update_logistics_status(record_id, new_status, original_row=None):
         status_df = load_logistics_status()
 
         if new_status is None:
-            new_status = "公司统筹中"
+            new_status = "🏭 钢厂已接单"  # 默认状态改为带符号的
         new_status = str(new_status).strip()
 
         send_notification = False
-        if new_status == "未到货":
+        if new_status == "❌ 未到货":
             existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
-            if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
+            if len(existing_status) == 0 or existing_status.iloc[0] != "❌ 未到货":
                 send_notification = True
 
         if record_id in status_df["record_id"].values:
@@ -608,7 +625,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         status_df = load_logistics_status()
         
         if new_status is None:
-            new_status = "公司统筹中"
+            new_status = "🏭 钢厂已接单"  # 默认状态改为带符号的
         new_status = str(new_status).strip()
 
         success_count = 0
@@ -619,9 +636,9 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                 original_row = original_rows[i] if original_rows and i < len(original_rows) else None
                 
                 send_notification = False
-                if new_status == "未到货":
+                if new_status == "❌ 未到货":
                     existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
-                    if len(existing_status) == 0 or existing_status.iloc[0] != "未到货":
+                    if len(existing_status) == 0 or existing_status.iloc[0] != "❌ 未到货":
                         send_notification = True
 
                 if record_id in status_df["record_id"].values:
@@ -715,18 +732,18 @@ def get_valid_projects():
 
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-    # 日期选择器布局调整
+    # 日期选择器布局调整 - 默认设置为当天
     date_col1, date_col2 = st.columns(2)
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date() - timedelta(days=AppConfig.LOGISTICS_DATE_RANGE_DAYS),
+            datetime.now().date(),  # 默认设为当天
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),
+            datetime.now().date(),  # 默认设为当天
             key="logistics_end"
         )
 
@@ -755,9 +772,10 @@ def show_logistics_tab(project):
             # =============== 统一卡片样式 ===============
             st.markdown('<div class="metric-container">', unsafe_allow_html=True)
 
-            overdue_count = filtered_df['到货状态'].eq('未到货').sum()
+            # 更新状态统计逻辑，使用带符号的状态
+            overdue_count = filtered_df['到货状态'].eq('❌ 未到货').sum()
             total_count = len(filtered_df)
-            arrived_count = filtered_df['到货状态'].eq('已到货').sum()
+            arrived_count = filtered_df['到货状态'].eq('✅ 已到货').sum()
             in_progress_count = total_count - arrived_count - overdue_count
 
             cols = st.columns(4)
@@ -810,7 +828,7 @@ def show_logistics_tab(project):
                 )
             
             with batch_col2:
-                # 选择新状态
+                # 选择新状态 - 使用带符号的状态选项
                 new_status = st.selectbox(
                     "选择新的到货状态",
                     options=AppConfig.STATUS_OPTIONS,
@@ -866,19 +884,19 @@ def show_logistics_tab(project):
             # 使用自动保存的数据编辑器 - 手机端优化
             st.markdown("**物流明细表** (状态更改会自动保存)")
             
-            # 配置列属性
+            # 配置列属性 - 调整列宽
             column_config = {
                 "到货状态": st.column_config.SelectboxColumn(
                     "到货状态",
                     options=AppConfig.STATUS_OPTIONS,
-                    default="公司统筹中",
+                    default="🏭 钢厂已接单",
                     required=True,
-                    width="medium"
+                    width=120  # 调整宽度
                 ),
                 "备注": st.column_config.TextColumn(
                     "备注",
                     help="可自由编辑的备注信息",
-                    width="large"
+                    width=150  # 调整宽度
                 ),
                 "数量": st.column_config.NumberColumn(
                     "数量",
@@ -887,23 +905,23 @@ def show_logistics_tab(project):
                 ),
                 "钢厂": st.column_config.TextColumn(
                     "钢厂",
-                    width=120
+                    width=100  # 调整宽度
                 ),
                 "物资名称": st.column_config.TextColumn(
                     "物资名称",
-                    width=150
+                    width=120  # 调整宽度
                 ),
                 "规格型号": st.column_config.TextColumn(
                     "规格型号",
-                    width=120
+                    width=100  # 调整宽度
                 ),
                 "收货地址": st.column_config.TextColumn(
                     "收货地址",
-                    width=200
+                    width=180  # 调整宽度
                 ),
                 "联系人": st.column_config.TextColumn(
                     "联系人",
-                    width=100
+                    width=90   # 调整宽度
                 )
             }
 
