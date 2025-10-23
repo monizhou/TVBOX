@@ -901,19 +901,19 @@ def show_logistics_tab(project):
                 "数量": st.column_config.NumberColumn(
                     "数量",
                     format="%d",
-                    width=80
+                    width=50
                 ),
                 "钢厂": st.column_config.TextColumn(
                     "钢厂",
-                    width=100  # 调整宽度
+                    width=50  # 调整宽度
                 ),
                 "物资名称": st.column_config.TextColumn(
                     "物资名称",
-                    width=120  # 调整宽度
+                    width=50  # 调整宽度
                 ),
                 "规格型号": st.column_config.TextColumn(
                     "规格型号",
-                    width=100  # 调整宽度
+                    width=50  # 调整宽度
                 ),
                 "收货地址": st.column_config.TextColumn(
                     "收货地址",
@@ -921,7 +921,7 @@ def show_logistics_tab(project):
                 ),
                 "联系人": st.column_config.TextColumn(
                     "联系人",
-                    width=90   # 调整宽度
+                    width=50   # 调整宽度
                 )
             }
 
@@ -1277,3 +1277,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
