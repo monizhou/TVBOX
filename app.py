@@ -456,9 +456,6 @@ def load_logistics_status():
                     status_df["record_id"] = ""
                 if "update_time" not in status_df.columns:
                     status_df["update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
-                # 移除物流信息列
-                if "物流信息" in status_df.columns:
-                    status_df = status_df.drop(columns=["物流信息"])
                 return status_df
         except Exception as e:
             st.error(f"加载物流状态文件失败: {str(e)}")
@@ -479,11 +476,12 @@ def save_logistics_status(status_df):
 def merge_logistics_with_status(logistics_df):
     """合并物流数据和状态数据"""
     if logistics_df.empty:
+        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
         return logistics_df
 
     status_df = load_logistics_status()
     if status_df.empty:
-        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
+        logistics_df["到货状态"] = "公司统筹中"
         return logistics_df
 
     # 确保status_df包含必要的列
