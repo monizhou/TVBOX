@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版 - 手机端优化版"""
+"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版 - 响应式列宽版"""
 import os
 import re
 import time
@@ -46,6 +46,29 @@ class AppConfig:
     # 修改状态选项：取消"公司统筹中"，默认改为"钢厂已接单"，并添加符号
     STATUS_OPTIONS = ["🏭 钢厂已接单", "🚚 运输装货中", "✅ 已到货", "❌ 未到货"]
     PROJECT_COLUMN = "项目部名称"
+
+    # 不同设备的列宽配置
+    DESKTOP_COLUMN_WIDTHS = {
+        "钢厂": 120,
+        "物资名称": 150,
+        "规格型号": 120,
+        "数量": 80,
+        "收货地址": 200,
+        "联系人": 100,
+        "到货状态": 130,
+        "备注": 180
+    }
+    
+    MOBILE_COLUMN_WIDTHS = {
+        "钢厂": 80,
+        "物资名称": 100,
+        "规格型号": 80,
+        "数量": 60,
+        "收货地址": 120,
+        "联系人": 70,
+        "到货状态": 100,
+        "备注": 120
+    }
 
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
@@ -178,22 +201,22 @@ def apply_card_styles():
                 font-size: 13px;
             }}
             
-            /* 表格列宽优化 */
+            /* 表格列宽优化 - 移动端 */
             .stDataFrame [data-testid="stDataFrameResizable"] {{
                 overflow-x: auto;
+            }}
+            
+            /* 移动端表格列宽设置 */
+            .mobile-table th, .mobile-table td {{
+                min-width: 60px !important;
+                max-width: 120px !important;
+                word-break: break-word;
+                font-size: 12px;
             }}
             
             /* 隐藏不必要的列 */
             .mobile-hidden {{
                 display: none;
-            }}
-            
-            /* 优化数据编辑器列宽 */
-            .stDataFrame [data-testid="stDataFrameResizable"] th,
-            .stDataFrame [data-testid="stDataFrameResizable"] td {{
-                min-width: 60px;
-                max-width: 120px;
-                word-break: break-word;
             }}
             
             /* 状态列特殊样式 */
@@ -211,6 +234,83 @@ def apply_card_styles():
             }}
             .status-not-arrived {{
                 color: #F44336;
+            }}
+            
+            /* 移动端列宽具体设置 */
+            .mobile-table th:nth-child(1), .mobile-table td:nth-child(1) {{ /* 钢厂 */
+                width: 80px !important;
+                min-width: 80px !important;
+            }}
+            .mobile-table th:nth-child(2), .mobile-table td:nth-child(2) {{ /* 物资名称 */
+                width: 100px !important;
+                min-width: 100px !important;
+            }}
+            .mobile-table th:nth-child(3), .mobile-table td:nth-child(3) {{ /* 规格型号 */
+                width: 80px !important;
+                min-width: 80px !important;
+            }}
+            .mobile-table th:nth-child(4), .mobile-table td:nth-child(4) {{ /* 数量 */
+                width: 60px !important;
+                min-width: 60px !important;
+            }}
+            .mobile-table th:nth-child(5), .mobile-table td:nth-child(5) {{ /* 收货地址 */
+                width: 120px !important;
+                min-width: 120px !important;
+            }}
+            .mobile-table th:nth-child(6), .mobile-table td:nth-child(6) {{ /* 联系人 */
+                width: 70px !important;
+                min-width: 70px !important;
+            }}
+            .mobile-table th:nth-child(7), .mobile-table td:nth-child(7) {{ /* 到货状态 */
+                width: 100px !important;
+                min-width: 100px !important;
+            }}
+            .mobile-table th:nth-child(8), .mobile-table td:nth-child(8) {{ /* 备注 */
+                width: 120px !important;
+                min-width: 120px !important;
+            }}
+        }}
+        
+        /* 桌面端样式 */
+        @media (min-width: 769px) {{
+            .desktop-table th, .desktop-table td {{
+                min-width: 80px !important;
+                max-width: 200px !important;
+                word-break: break-word;
+            }}
+            
+            /* 桌面端列宽具体设置 */
+            .desktop-table th:nth-child(1), .desktop-table td:nth-child(1) {{ /* 钢厂 */
+                width: 120px !important;
+                min-width: 120px !important;
+            }}
+            .desktop-table th:nth-child(2), .desktop-table td:nth-child(2) {{ /* 物资名称 */
+                width: 150px !important;
+                min-width: 150px !important;
+            }}
+            .desktop-table th:nth-child(3), .desktop-table td:nth-child(3) {{ /* 规格型号 */
+                width: 120px !important;
+                min-width: 120px !important;
+            }}
+            .desktop-table th:nth-child(4), .desktop-table td:nth-child(4) {{ /* 数量 */
+                width: 80px !important;
+                min-width: 80px !important;
+            }}
+            .desktop-table th:nth-child(5), .desktop-table td:nth-child(5) {{ /* 收货地址 */
+                width: 200px !important;
+                min-width: 200px !important;
+            }}
+            .desktop-table th:nth-child(6), .desktop-table td:nth-child(6) {{ /* 联系人 */
+                width: 100px !important;
+                min-width: 100px !important;
+            }}
+            .desktop-table th:nth-child(7), .desktop-table td:nth-child(7) {{ /* 到货状态 */
+                width: 130px !important;
+                min-width: 130px !important;
+            }}
+            .desktop-table th:nth-child(8), .desktop-table td:nth-child(8) {{ /* 备注 */
+                width: 180px !important;
+                min-width: 180px !important;
             }}
         }}
         {AppConfig.CARD_STYLES['number_animation']}
@@ -731,6 +831,54 @@ def get_valid_projects():
 
 
 # ==================== 页面组件 ====================
+def get_column_config(device_type="desktop"):
+    """根据设备类型获取列配置"""
+    if device_type == "mobile":
+        widths = AppConfig.MOBILE_COLUMN_WIDTHS
+    else:
+        widths = AppConfig.DESKTOP_COLUMN_WIDTHS
+    
+    return {
+        "到货状态": st.column_config.SelectboxColumn(
+            "到货状态",
+            options=AppConfig.STATUS_OPTIONS,
+            default="🏭 钢厂已接单",
+            required=True,
+            width=widths["到货状态"]
+        ),
+        "备注": st.column_config.TextColumn(
+            "备注",
+            help="可自由编辑的备注信息",
+            width=widths["备注"]
+        ),
+        "数量": st.column_config.NumberColumn(
+            "数量",
+            format="%d",
+            width=widths["数量"]
+        ),
+        "钢厂": st.column_config.TextColumn(
+            "钢厂",
+            width=widths["钢厂"]
+        ),
+        "物资名称": st.column_config.TextColumn(
+            "物资名称",
+            width=widths["物资名称"]
+        ),
+        "规格型号": st.column_config.TextColumn(
+            "规格型号",
+            width=widths["规格型号"]
+        ),
+        "收货地址": st.column_config.TextColumn(
+            "收货地址",
+            width=widths["收货地址"]
+        ),
+        "联系人": st.column_config.TextColumn(
+            "联系人",
+            width=widths["联系人"]
+        )
+    }
+
+
 def show_logistics_tab(project):
     # 日期选择器布局调整 - 默认设置为当天
     date_col1, date_col2 = st.columns(2)
@@ -881,49 +1029,11 @@ def show_logistics_tab(project):
             # 重置索引以确保一致性
             display_df = display_df.reset_index(drop=True)
 
-            # 使用自动保存的数据编辑器 - 手机端优化
+            # 使用自动保存的数据编辑器 - 响应式设计
             st.markdown("**物流明细表** (状态更改会自动保存)")
             
-            # 配置列属性 - 调整列宽
-            column_config = {
-                "到货状态": st.column_config.SelectboxColumn(
-                    "到货状态",
-                    options=AppConfig.STATUS_OPTIONS,
-                    default="🏭 钢厂已接单",
-                    required=True,
-                    width=120  # 调整宽度
-                ),
-                "备注": st.column_config.TextColumn(
-                    "备注",
-                    help="可自由编辑的备注信息",
-                    width=150  # 调整宽度
-                ),
-                "数量": st.column_config.NumberColumn(
-                    "数量",
-                    format="%d",
-                    width=50
-                ),
-                "钢厂": st.column_config.TextColumn(
-                    "钢厂",
-                    width=50  # 调整宽度
-                ),
-                "物资名称": st.column_config.TextColumn(
-                    "物资名称",
-                    width=50  # 调整宽度
-                ),
-                "规格型号": st.column_config.TextColumn(
-                    "规格型号",
-                    width=50  # 调整宽度
-                ),
-                "收货地址": st.column_config.TextColumn(
-                    "收货地址",
-                    width=180  # 调整宽度
-                ),
-                "联系人": st.column_config.TextColumn(
-                    "联系人",
-                    width=50   # 调整宽度
-                )
-            }
+            # 获取列配置 - 使用桌面端配置，CSS会根据设备类型调整实际宽度
+            column_config = get_column_config("desktop")
 
             # 创建数据编辑器
             edited_df = st.data_editor(
@@ -1200,7 +1310,7 @@ def show_data_panel(df, project):
                         "计划进场时间": "计划进场时间"
                     }
 
-                    available_cols = {k: v for k, v in display_cols.items() if k in date_range_df.columns}
+                    available_cols = {k, v for k, v in display_cols.items() if k in date_range_df.columns}
                     display_df = date_range_df[available_cols.keys()].rename(columns=available_cols)
 
                     if "材料名称" in display_df.columns:
@@ -1277,4 +1387,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
