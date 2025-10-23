@@ -1164,6 +1164,7 @@ def show_data_panel(df, project):
                     <div class="remark-card plan-remark">
                         <div class="remark-content">
                             📢 以上计划已全部提报给公司
+                            📢 温馨提示：公司更新发货台账为当天下午6:00 ！！！
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1212,4 +1213,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
