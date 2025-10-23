@@ -260,7 +260,7 @@ def apply_card_styles():
             
             .stTabs [data-baseweb="tab"] {{
                 padding: 8px 12px !important;
-                font-size: 12px !important;
+                font-size: 10px !important;
             }}
         }}
 
@@ -1337,3 +1337,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
