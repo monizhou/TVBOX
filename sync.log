@@ -1737,4 +1737,13 @@ hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 [2025-10-24 10:50:29] Git推送失败，正在重试 (3/3)
 [2025-10-24 10:50:39] 错误：Git推送失败！
 [2025-10-24 11:07:04] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2442572 Oct 24 11:07 发货计划（宜宾项目）汇总.xlsm
-[2025-10-24 11:07:33] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2442579 Oct 24 11:07 发货计划（宜宾项目）汇总.xlsm
+To github.com:monizhou/TVBOX.git
+   d5ab73c..1c82ef3  main -> main
+r 197121 2442579 Oct 24 11:07 发货计划（宜宾项目）汇总.xlsm
+[main 376c920] 自动更新: 2025-10-24 11:07:34
+ 2 files changed, 1 insertion(+)
+To github.com:monizhou/TVBOX.git
+ ! [remote rejected] main -> main (cannot lock ref 'refs/heads/main': is at 1c82ef3e654eb689d54244a4bda750b4dee13465 but expected d5ab73c3d1d5f9d4dcb636855cbc56cb8b6fd314)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+[2025-10-24 11:07:41] Git推送失败，正在重试 (1/3)
+[2025-10-24 11:51:29] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2442579 Oct 24 11:51 发货计划（宜宾项目）汇总.xlsm
