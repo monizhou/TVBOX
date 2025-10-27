@@ -43,39 +43,40 @@ class AppConfig:
     PROJECT_COLUMN = "项目部名称"
 
     # 项目名称映射（拼音标识）
-   PROJECT_MAPPING = {
-    "ztwm": "中铁物贸成都分公司",
-    "sdtjdzzyykjy": "商投建工达州中医药科技园",
-    "hxjyxcjy": "华西简阳西城嘉苑",
-    "hxjcn": "华西酒城南",
-    "hxmhkckjstg": "华西萌海-科创农业生态谷",
-    "hxxlxx": "华西兴隆学校",
-    "hxyhkckjstg": "华西颐海-科创农业生态谷",
-    "lssxdgjcjrhjdxm2": "乐山市校地共建产教融合基地建设项目二标段",
-    "lssxdgjcjrhjdxm1": "乐山市校地共建产教融合基地建设项目一标段",
-    "scsjshtyh": "四川商建射洪城乡一体化项目",
-    "wyggdzswsgwslcylczx": "五冶钢构达州市公共卫生临床医疗中心项目",
-    "wygglqdh70m2": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目二标段",
-    "wygglqdh70m3": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目三标段",
-    "wygglqdh70m1": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目一标段",
-    "wygglqdh85m2": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目二标段",
-    "wygglqdh85m3": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目三标段",
-    "wygglqdh85m1": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目一标段",
-    "wyggybnxgxyj": "五冶钢构-宜宾市南溪区高县月江镇建设项目",
-    "wyjscdgjtlgdsl": "五冶建设成都国际铁路港多式联项目",
-    "wyjscdydjzxczb2": "五冶建设成都盐道街中学初中部改扩建工程-二标",
-    "wyjscdydjzxczb1": "五冶建设成都盐道街中学初中部改扩建工程-一标",
-    "wyjsjjqljb20": "五冶建设锦江区林家坝片区20号地块商业项目",
-    "wyjskgxcyxjd83": "五冶建设空港兴城怡心街道83亩项目",
-    "wyjsklytzx2": "五冶建设扩建艺体中学二期工程",
-    "wyjslqfrhy": "五冶建设龙泉芙蓉花语项目",
-    "wyjslqyyyypz": "五冶建设龙泉驿一医院配套建设工程",
-    "wyjssdfzwyx": "五冶建设师大附中外语校新建教学楼工程",
-    "whdqhjcdwqdgqdd": "武汉电气化局成达万高铁强电项目",
-    "ybxgsjxcjgyy": "宜宾兴港三江新区长江工业园建设项目",
-    "ztkyybnx": "中铁科研院宜宾泥溪项目",
-    "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
-}
+    PROJECT_MAPPING = {
+        "ztwm": "中铁物贸成都分公司",
+        "sdtjdzzyykjy": "商投建工达州中医药科技园",
+        # 可以继续添加其他项目部的映射
+        "hxjyxcjy": "华西简阳西城嘉苑",
+           "hxjcn": "华西酒城南",
+        "hxmhkckjstg": "华西萌海-科创农业生态谷",
+        "hxxlxx": "华西兴隆学校",
+        "hxyhkckjstg": "华西颐海-科创农业生态谷",
+        "lssxdgjcjrhjdxm2": "乐山市校地共建产教融合基地建设项目二标段",
+        "lssxdgjcjrhjdxm1": "乐山市校地共建产教融合基地建设项目一标段",
+        "scsjshtyh": "四川商建射洪城乡一体化项目",
+        "wyggdzswsgwslcylczx": "五冶钢构达州市公共卫生临床医疗中心项目",
+        "wygglqdh70m2": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目二标段",
+        "wygglqdh70m3": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目三标段",
+        "wygglqdh70m1": "五冶钢构龙泉东洪片区70亩住宅、商业及配套工程项目一标段",
+        "wygglqdh85m2": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目二标段",
+        "wygglqdh85m3": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目三标段",
+        "wygglqdh85m1": "五冶钢构龙泉东洪片区85亩住宅、商业及配套工程项目一标段",
+        "wyggybnxgxyj": "五冶钢构-宜宾市南溪区高县月江镇建设项目",
+        "wyjscdgjtlgdsl": "五冶建设成都国际铁路港多式联项目",
+        "wyjscdydjzxczb2": "五冶建设成都盐道街中学初中部改扩建工程-二标",
+        "wyjscdydjzxczb1": "五冶建设成都盐道街中学初中部改扩建工程-一标",
+        "wyjsjjqljb20": "五冶建设锦江区林家坝片区20号地块商业项目",
+        "wyjskgxcyxjd83": "五冶建设空港兴城怡心街道83亩项目",
+        "wyjsklytzx2": "五冶建设扩建艺体中学二期工程",
+        "wyjslqfrhy": "五冶建设龙泉芙蓉花语项目",
+        "wyjslqyyyypz": "五冶建设龙泉驿一医院配套建设工程",
+        "wyjssdfzwyx": "五冶建设师大附中外语校新建教学楼工程",
+        "whdqhjcdwqdgqdd": "武汉电气化局成达万高铁强电项目",
+        "ybxgsjxcjgyy": "宜宾兴港三江新区长江工业园建设项目",
+        "ztkyybnx": "中铁科研院宜宾泥溪项目",
+        "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
+    }
 
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
@@ -1276,4 +1277,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
