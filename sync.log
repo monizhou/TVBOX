@@ -1807,3 +1807,32 @@ To github.com:monizhou/TVBOX.git
    656cf82..fe0d984  main -> main
 [2025-10-27 14:40:19] 同步成功
 [2025-10-27 19:15:30] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2474460 Oct 27 19:15 发货计划（宜宾项目）汇总.xlsm
+[main 54c44c5] 自动更新: 2025-10-27 19:15:31
+ 2 files changed, 6 insertions(+)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-27 19:15:36] Git推送失败，正在重试 (1/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-27 19:15:50] Git推送失败，正在重试 (2/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-27 19:16:04] Git推送失败，正在重试 (3/3)
