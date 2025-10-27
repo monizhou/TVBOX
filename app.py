@@ -48,7 +48,7 @@ class AppConfig:
         "sdtjdzzyykjy": "商投建工达州中医药科技园",
         # 可以继续添加其他项目部的映射
         "hxjyxcjy": "华西简阳西城嘉苑",
-           "hxjcn": "华西酒城南",
+        "hxjcn": "华西酒城南",
         "hxmhkckjstg": "华西萌海-科创农业生态谷",
         "hxxlxx": "华西兴隆学校",
         "hxyhkckjstg": "华西颐海-科创农业生态谷",
@@ -1277,3 +1277,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
