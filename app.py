@@ -42,6 +42,13 @@ class AppConfig:
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
 
+    # 项目名称映射（拼音标识）
+    PROJECT_MAPPING = {
+        "ztwm": "中铁物贸成都分公司",
+        "sdtjdzzyykjy": "商投建工达州中医药科技园",
+        # 可以继续添加其他项目部的映射
+    }
+
     CARD_STYLES = {
         "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
         "glass_effect": """
@@ -493,13 +500,25 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
-    """合并物流数据和状态数据"""
+    """合并物流数据和状态数据，添加5天自动到货逻辑"""
     if logistics_df.empty:
         return logistics_df
 
     status_df = load_logistics_status()
+    
+    # 计算5天前的日期
+    current_date = datetime.now().date()
+    five_days_ago = current_date - timedelta(days=5)
+    
     if status_df.empty:
-        logistics_df["到货状态"] = "公司统筹中"  # 默认状态
+        # 如果没有状态数据，根据交货时间设置默认状态
+        logistics_df["到货状态"] = logistics_df.apply(
+            lambda row: "已到货" if (
+                pd.notna(row["交货时间"]) and 
+                row["交货时间"].date() < five_days_ago
+            ) else "公司统筹中",
+            axis=1
+        )
         return logistics_df
 
     # 确保status_df包含必要的列
@@ -517,15 +536,30 @@ def merge_logistics_with_status(logistics_df):
         suffixes=("", "_status")
     )
     
-    # 安全地填充默认值 - 使用列名检查避免KeyError
+    # 安全地填充默认值，并应用5天规则
     if "到货状态_status" in merged.columns:
-        merged["到货状态"] = merged["到货状态_status"].fillna("公司统筹中")
-    else:
-        merged["到货状态"] = "公司统筹中"
-    
-    # 删除可能不存在的状态列
-    if "到货状态_status" in merged.columns:
+        # 对于没有状态的记录，应用5天规则
+        mask_no_status = merged["到货状态_status"].isna()
+        mask_old_delivery = merged["交货时间"].apply(
+            lambda x: pd.notna(x) and x.date() < five_days_ago
+        )
+        
+        # 对于交货时间超过5天且没有状态的记录，设置为"已到货"
+        merged.loc[mask_no_status & mask_old_delivery, "到货状态"] = "已到货"
+        # 其他没有状态的记录保持默认
+        merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "公司统筹中"
+        # 对于已有状态的记录，保持原状态
+        merged.loc[~mask_no_status, "到货状态"] = merged.loc[~mask_no_status, "到货状态_status"]
         merged = merged.drop(columns=["到货状态_status"])
+    else:
+        # 如果没有状态列，全部应用5天规则
+        merged["到货状态"] = merged.apply(
+            lambda row: "已到货" if (
+                pd.notna(row["交货时间"]) and 
+                row["交货时间"].date() < five_days_ago
+            ) else "公司统筹中",
+            axis=1
+        )
     
     return merged
 
@@ -641,11 +675,12 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
 
 # ==================== URL参数处理 ====================
 def handle_url_parameters():
-    """处理URL参数，实现直接跳转到指定项目部"""
+    """处理URL参数，使用拼音标识"""
     query_params = st.experimental_get_query_params()
     
     if 'project' in query_params:
-        project_name = query_params['project'][0]
+        project_key = query_params['project'][0].lower()  # 转为小写
+        project_name = AppConfig.PROJECT_MAPPING.get(project_key, "中铁物贸成都分公司")
         
         # 验证项目部名称是否有效
         valid_projects = get_valid_projects()
@@ -690,18 +725,18 @@ def get_valid_projects():
 
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-    # 日期选择器布局调整
+    # 日期选择器布局调整 - 修改默认值为当天
     date_col1, date_col2 = st.columns(2)
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date() - timedelta(days=AppConfig.LOGISTICS_DATE_RANGE_DAYS),
+            datetime.now().date(),  # 修改：默认当天
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),
+            datetime.now().date(),  # 修改：默认当天
             key="logistics_end"
         )
 
@@ -1213,4 +1248,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
