@@ -113,10 +113,9 @@ class AppConfig:
 
 # ==================== 辅助函数 ====================
 def find_data_file():
-    """查找数据文件，增强版本"""
+    """查找数据文件，静默版本"""
     for path in AppConfig.DATA_PATHS:
         if os.path.exists(path):
-            st.success(f"✅ 找到数据文件: {os.path.basename(path)}")
             return path
 
     # 如果没有找到配置的文件，列出当前目录下的所有Excel文件供选择
@@ -124,10 +123,8 @@ def find_data_file():
     if current_dir:
         excel_files = [f for f in os.listdir(current_dir) if f.endswith(('.xlsx', '.xls', '.xlsm'))]
         if excel_files:
-            st.warning(f"未找到配置的数据文件，但发现以下Excel文件: {', '.join(excel_files)}")
-            # 尝试使用第一个Excel文件
+            # 静默使用第一个Excel文件
             first_excel = os.path.join(current_dir, excel_files[0])
-            st.info(f"尝试使用: {excel_files[0]}")
             return first_excel
 
     st.error("❌ 未找到任何Excel数据文件")
@@ -1277,5 +1274,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
