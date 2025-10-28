@@ -702,10 +702,19 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
 # ==================== URL参数处理 ====================
 def handle_url_parameters():
     """处理URL参数，使用拼音标识"""
-    query_params = st.experimental_get_query_params()
+    # 使用新的 st.query_params API
+    query_params = st.query_params
     
+    # 检查是否存在 project 参数
     if 'project' in query_params:
-        project_key = query_params['project'][0].lower()  # 转为小写
+        # 获取 project 参数的值
+        project_key = query_params['project']
+        # 如果返回的是列表，取第一个元素；否则直接使用
+        if isinstance(project_key, list):
+            project_key = project_key[0].lower()
+        else:
+            project_key = project_key.lower()
+            
         project_name = AppConfig.PROJECT_MAPPING.get(project_key, "中铁物贸成都分公司")
         
         # 验证项目部名称是否有效
@@ -1274,6 +1283,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
