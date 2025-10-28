@@ -529,23 +529,23 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
-    """合并物流数据和状态数据，添加5天自动到货逻辑"""
+    """合并物流数据和状态数据，添加3天自动到货逻辑，默认状态为钢厂已接单"""
     if logistics_df.empty:
         return logistics_df
 
     status_df = load_logistics_status()
     
-    # 计算5天前的日期
+    # 计算3天前的日期
     current_date = datetime.now().date()
-    five_days_ago = current_date - timedelta(days=5)
+    three_days_ago = current_date - timedelta(days=3)
     
     if status_df.empty:
         # 如果没有状态数据，根据交货时间设置默认状态
         logistics_df["到货状态"] = logistics_df.apply(
             lambda row: "已到货" if (
                 pd.notna(row["交货时间"]) and 
-                row["交货时间"].date() < five_days_ago
-            ) else "公司统筹中",
+                row["交货时间"].date() < three_days_ago
+            ) else "钢厂已接单",  # 修改：默认状态改为钢厂已接单
             axis=1
         )
         return logistics_df
@@ -565,28 +565,28 @@ def merge_logistics_with_status(logistics_df):
         suffixes=("", "_status")
     )
     
-    # 安全地填充默认值，并应用5天规则
+    # 安全地填充默认值，并应用3天规则
     if "到货状态_status" in merged.columns:
-        # 对于没有状态的记录，应用5天规则
+        # 对于没有状态的记录，应用3天规则
         mask_no_status = merged["到货状态_status"].isna()
         mask_old_delivery = merged["交货时间"].apply(
-            lambda x: pd.notna(x) and x.date() < five_days_ago
+            lambda x: pd.notna(x) and x.date() < three_days_ago
         )
         
-        # 对于交货时间超过5天且没有状态的记录，设置为"已到货"
+        # 对于交货时间超过3天且没有状态的记录，设置为"已到货"
         merged.loc[mask_no_status & mask_old_delivery, "到货状态"] = "已到货"
-        # 其他没有状态的记录保持默认
-        merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "公司统筹中"
+        # 其他没有状态的记录保持默认状态"钢厂已接单"
+        merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "钢厂已接单"  # 修改
         # 对于已有状态的记录，保持原状态
         merged.loc[~mask_no_status, "到货状态"] = merged.loc[~mask_no_status, "到货状态_status"]
         merged = merged.drop(columns=["到货状态_status"])
     else:
-        # 如果没有状态列，全部应用5天规则
+        # 如果没有状态列，全部应用3天规则
         merged["到货状态"] = merged.apply(
             lambda row: "已到货" if (
                 pd.notna(row["交货时间"]) and 
-                row["交货时间"].date() < five_days_ago
-            ) else "公司统筹中",
+                row["交货时间"].date() < three_days_ago
+            ) else "钢厂已接单",  # 修改：默认状态改为钢厂已接单
             axis=1
         )
     
@@ -1277,4 +1277,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
