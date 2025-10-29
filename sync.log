@@ -1946,3 +1946,5 @@ hint: the same ref. If you want to integrate the remote changes, use
 hint: 'git pull' before pushing again.
 hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 [2025-10-29 10:22:05] Git推送失败，正在重试 (3/3)
+[2025-10-29 10:22:15] 错误：Git推送失败！
+[2025-10-29 10:22:29] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2487405 Oct 29 10:22 发货计划（宜宾项目）汇总.xlsm
