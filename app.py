@@ -113,10 +113,9 @@ class AppConfig:
 
 # ==================== 辅助函数 ====================
 def find_data_file():
-    """查找数据文件，增强版本"""
+    """查找数据文件，静默版本"""
     for path in AppConfig.DATA_PATHS:
         if os.path.exists(path):
-            st.success(f"✅ 找到数据文件: {os.path.basename(path)}")
             return path
 
     # 如果没有找到配置的文件，列出当前目录下的所有Excel文件供选择
@@ -124,10 +123,8 @@ def find_data_file():
     if current_dir:
         excel_files = [f for f in os.listdir(current_dir) if f.endswith(('.xlsx', '.xls', '.xlsm'))]
         if excel_files:
-            st.warning(f"未找到配置的数据文件，但发现以下Excel文件: {', '.join(excel_files)}")
-            # 尝试使用第一个Excel文件
+            # 静默使用第一个Excel文件
             first_excel = os.path.join(current_dir, excel_files[0])
-            st.info(f"尝试使用: {excel_files[0]}")
             return first_excel
 
     st.error("❌ 未找到任何Excel数据文件")
@@ -529,23 +526,23 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
-    """合并物流数据和状态数据，添加5天自动到货逻辑"""
+    """合并物流数据和状态数据，添加3天自动到货逻辑，默认状态为钢厂已接单"""
     if logistics_df.empty:
         return logistics_df
 
     status_df = load_logistics_status()
     
-    # 计算5天前的日期
+    # 计算3天前的日期
     current_date = datetime.now().date()
-    five_days_ago = current_date - timedelta(days=5)
+    three_days_ago = current_date - timedelta(days=3)
     
     if status_df.empty:
         # 如果没有状态数据，根据交货时间设置默认状态
         logistics_df["到货状态"] = logistics_df.apply(
             lambda row: "已到货" if (
                 pd.notna(row["交货时间"]) and 
-                row["交货时间"].date() < five_days_ago
-            ) else "公司统筹中",
+                row["交货时间"].date() < three_days_ago
+            ) else "钢厂已接单",  # 修改：默认状态改为钢厂已接单
             axis=1
         )
         return logistics_df
@@ -565,28 +562,28 @@ def merge_logistics_with_status(logistics_df):
         suffixes=("", "_status")
     )
     
-    # 安全地填充默认值，并应用5天规则
+    # 安全地填充默认值，并应用3天规则
     if "到货状态_status" in merged.columns:
-        # 对于没有状态的记录，应用5天规则
+        # 对于没有状态的记录，应用3天规则
         mask_no_status = merged["到货状态_status"].isna()
         mask_old_delivery = merged["交货时间"].apply(
-            lambda x: pd.notna(x) and x.date() < five_days_ago
+            lambda x: pd.notna(x) and x.date() < three_days_ago
         )
         
-        # 对于交货时间超过5天且没有状态的记录，设置为"已到货"
+        # 对于交货时间超过3天且没有状态的记录，设置为"已到货"
         merged.loc[mask_no_status & mask_old_delivery, "到货状态"] = "已到货"
-        # 其他没有状态的记录保持默认
-        merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "公司统筹中"
+        # 其他没有状态的记录保持默认状态"钢厂已接单"
+        merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "钢厂已接单"  # 修改
         # 对于已有状态的记录，保持原状态
         merged.loc[~mask_no_status, "到货状态"] = merged.loc[~mask_no_status, "到货状态_status"]
         merged = merged.drop(columns=["到货状态_status"])
     else:
-        # 如果没有状态列，全部应用5天规则
+        # 如果没有状态列，全部应用3天规则
         merged["到货状态"] = merged.apply(
             lambda row: "已到货" if (
                 pd.notna(row["交货时间"]) and 
-                row["交货时间"].date() < five_days_ago
-            ) else "公司统筹中",
+                row["交货时间"].date() < three_days_ago
+            ) else "钢厂已接单",  # 修改：默认状态改为钢厂已接单
             axis=1
         )
     
@@ -705,10 +702,19 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
 # ==================== URL参数处理 ====================
 def handle_url_parameters():
     """处理URL参数，使用拼音标识"""
-    query_params = st.experimental_get_query_params()
+    # 使用新的 st.query_params API
+    query_params = st.query_params
     
+    # 检查是否存在 project 参数
     if 'project' in query_params:
-        project_key = query_params['project'][0].lower()  # 转为小写
+        # 获取 project 参数的值
+        project_key = query_params['project']
+        # 如果返回的是列表，取第一个元素；否则直接使用
+        if isinstance(project_key, list):
+            project_key = project_key[0].lower()
+        else:
+            project_key = project_key.lower()
+            
         project_name = AppConfig.PROJECT_MAPPING.get(project_key, "中铁物贸成都分公司")
         
         # 验证项目部名称是否有效
@@ -1277,4 +1283,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
