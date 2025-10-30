@@ -781,13 +781,13 @@ def show_logistics_tab(project):
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date(),  # 修改：默认当天
+            datetime.now().date(),
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),  # 修改：默认当天
+            datetime.now().date(),
             key="logistics_end"
         )
 
@@ -805,7 +805,7 @@ def show_logistics_tab(project):
 
             # 修复日期比较问题 - 确保类型一致
             start_date_pd = pd.to_datetime(logistics_start_date)
-            end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)  # 包含结束日期的全天
+            end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)
 
             mask = (
                     (logistics_df["交货时间"] >= start_date_pd) &
@@ -914,8 +914,8 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id）
-            display_columns = [col for col in filtered_df.columns if col != "record_id"]
+            # 准备显示的列（排除record_id和收货地址）
+            display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
             display_df = filtered_df[display_columns].copy()
 
             # 重置索引以确保一致性
@@ -943,7 +943,7 @@ def show_logistics_tab(project):
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        width=90  # 设置列宽为9
+                        width=90
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
@@ -1507,4 +1507,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
