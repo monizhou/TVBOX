@@ -23,7 +23,7 @@ class AppConfig:
     LOGISTICS_SHEET_NAME = "物流明细"
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
-        "交货时间", "收货地址", "联系人", "联系方式", "项目部",
+        "交货时间", "联系人", "联系方式", "项目部",
         "到货状态", "备注"  # 保留到货状态和备注列
     ]
 
@@ -310,6 +310,25 @@ def apply_card_styles():
             margin-bottom: 1rem;
             color: #2c3e50;
         }}
+        
+        /* 统计图表样式 */
+        .stat-card {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #FF6B6B;
+        }}
+        .stat-title {{
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -457,6 +476,9 @@ def load_logistics_data():
                 "": "未指定钢厂", "nan": "未指定钢厂", "None": "未指定钢厂", None: "未指定钢厂"})
             df["项目部"] = df["项目部"].astype(str).str.strip().replace({
                 "未指定项目部": "", "nan": "", "None": "", None: ""})
+
+            # 过滤掉项目部为空的数据
+            df = df[df["项目部"] != ""]
 
             # 安全转换数值列
             def safe_convert_numeric(series):
@@ -759,13 +781,13 @@ def show_logistics_tab(project):
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date(),  # 修改：默认当天
+            datetime.now().date(),
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),  # 修改：默认当天
+            datetime.now().date(),
             key="logistics_end"
         )
 
@@ -783,7 +805,7 @@ def show_logistics_tab(project):
 
             # 修复日期比较问题 - 确保类型一致
             start_date_pd = pd.to_datetime(logistics_start_date)
-            end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)  # 包含结束日期的全天
+            end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)
 
             mask = (
                     (logistics_df["交货时间"] >= start_date_pd) &
@@ -892,8 +914,8 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id）
-            display_columns = [col for col in filtered_df.columns if col != "record_id"]
+            # 准备显示的列（排除record_id和收货地址）
+            display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
             display_df = filtered_df[display_columns].copy()
 
             # 重置索引以确保一致性
@@ -921,7 +943,7 @@ def show_logistics_tab(project):
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        width=90  # 设置列宽为9
+                        width=90
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
@@ -1152,6 +1174,277 @@ def show_project_selection(df):
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+def show_plan_tab(df, project):
+    """显示发货计划标签页"""
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0), key="plan_start")
+    with col2:
+        end_date = st.date_input("结束日期", datetime.now(), key="plan_end")
+
+    if start_date > end_date:
+        st.error("日期范围无效")
+        return
+        
+    with st.spinner("筛选数据..."):
+        filtered_df = df if project == "中铁物贸成都分公司" else df[df[AppConfig.PROJECT_COLUMN] == project]
+        date_range_df = filtered_df[
+            (filtered_df["下单时间"].dt.date >= start_date) &
+            (filtered_df["下单时间"].dt.date <= end_date)
+            ]
+
+        if not date_range_df.empty:
+            display_metrics_cards(date_range_df)
+
+            display_cols = {
+                "标段名称": "工程标段",
+                "物资名称": "材料名称",
+                "规格型号": "规格型号",
+                "需求量": "需求(吨)",
+                "已发量": "已发(吨)",
+                "剩余量": "待发(吨)",
+                "超期天数": "超期天数",
+                "下单时间": "下单时间",
+                "计划进场时间": "计划进场时间"
+            }
+
+            available_cols = {k: v for k, v in display_cols.items() if k in date_range_df.columns}
+            display_df = date_range_df[available_cols.keys()].rename(columns=available_cols)
+
+            if "材料名称" in display_df.columns:
+                display_df["材料名称"] = display_df["材料名称"].fillna("未指定物资")
+
+            st.dataframe(
+                display_df.style.format({
+                    '需求(吨)': '{:,}',
+                    '已发(吨)': '{:,}',
+                    '待发(吨)': '{:,}',
+                    '超期天数': '{:,}',
+                    '下单时间': lambda x: x.strftime('%Y-%m-%d') if not pd.isnull(x) else '',
+                    '计划进场时间': lambda x: x.strftime('%Y-%m-%d') if not pd.isnull(x) else ''
+                }).apply(
+                    lambda row: ['background-color: #ffdddd' if row.get('超期天数', 0) > 0 else ''
+                                 for _ in row],
+                    axis=1
+                ),
+                use_container_width=True,
+                height=min(600, 35 * len(display_df) + 40),
+                hide_index=True
+            )
+
+            st.markdown("""
+            <div class="remark-card plan-remark">
+                <div class="remark-content">
+                    📢 以上计划已全部提报给公司
+                    📢 温馨提示：公司更新发货台账为当天下午6:00 ！！！
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.download_button(
+                "⬇️ 导出数据",
+                display_df.to_csv(index=False).encode('utf-8-sig'),
+                f"{project}_发货数据_{start_date}_{end_date}.csv",
+                "text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("该时间段无数据")
+
+
+def show_statistics_tab(df):
+    """数据统计面板"""
+    st.header("📊 数据统计分析")
+    
+    # 统计日期范围选择
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        stat_start_date = st.date_input(
+            "统计开始日期",
+            datetime.now().date() - timedelta(days=30),
+            key="stat_start"
+        )
+    with col2:
+        stat_end_date = st.date_input(
+            "统计结束日期", 
+            datetime.now().date(),
+            key="stat_end"
+        )
+    with col3:
+        st.write("")  # 空行用于对齐
+        st.write("")  # 空行用于对齐
+        if st.button("🔍 生成统计", use_container_width=True):
+            st.rerun()
+    
+    if stat_start_date > stat_end_date:
+        st.error("结束日期不能早于开始日期")
+        return
+        
+    # 加载物流数据进行统计
+    logistics_df = load_logistics_data()
+    if logistics_df.empty:
+        st.info("暂无物流数据可供统计")
+        return
+        
+    # 过滤日期范围
+    start_date_pd = pd.to_datetime(stat_start_date)
+    end_date_pd = pd.to_datetime(stat_end_date) + timedelta(days=1)
+    
+    mask = (
+        (logistics_df["交货时间"] >= start_date_pd) &
+        (logistics_df["交货时间"] < end_date_pd)
+    )
+    filtered_logistics = logistics_df[mask].copy()
+    
+    if filtered_logistics.empty:
+        st.info("选定日期范围内无物流数据")
+        return
+    
+    # 1. 项目部-厂家统计
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">🏗️ 各项目部发货统计（按厂家）</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 按项目部和厂家分组统计
+    project_factory_stats = filtered_logistics.groupby(['项目部', '钢厂']).agg({
+        '数量': 'sum',
+        'record_id': 'count'
+    }).rename(columns={'record_id': '发货单数'}).reset_index()
+    
+    # 显示统计表
+    if not project_factory_stats.empty:
+        # 格式化数量列
+        project_factory_stats['数量'] = project_factory_stats['数量'].round(2)
+        
+        # 使用数据框显示
+        st.dataframe(
+            project_factory_stats,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "项目部": st.column_config.TextColumn("项目部", width="medium"),
+                "钢厂": st.column_config.TextColumn("钢厂", width="medium"),
+                "数量": st.column_config.NumberColumn("发货数量(吨)", format="%.2f", width="small"),
+                "发货单数": st.column_config.NumberColumn("发货单数", format="%d", width="small")
+            }
+        )
+        
+        # 下载统计结果
+        csv_data = project_factory_stats.to_csv(index=False, encoding='utf-8-sig')
+        st.download_button(
+            "⬇️ 下载统计结果",
+            csv_data,
+            f"项目部厂家统计_{stat_start_date}_{stat_end_date}.csv",
+            "text/csv",
+            use_container_width=True
+        )
+    else:
+        st.info("暂无项目部-厂家统计信息")
+    
+    # 2. 关键指标卡片
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">📈 关键指标</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    total_quantity = filtered_logistics['数量'].sum()
+    total_orders = len(filtered_logistics)
+    avg_quantity = total_quantity / total_orders if total_orders > 0 else 0
+    project_count = filtered_logistics['项目部'].nunique()
+    factory_count = filtered_logistics['钢厂'].nunique()
+    
+    cols = st.columns(5)
+    metrics = [
+        ("📦", "总发货量", f"{total_quantity:.2f}", "吨"),
+        ("📋", "总发货单数", f"{total_orders}", "单"),
+        ("⚖️", "平均每单", f"{avg_quantity:.2f}", "吨"),
+        ("🏗️", "涉及项目部", f"{project_count}", "个"),
+        ("🏭", "合作钢厂", f"{factory_count}", "家")
+    ]
+    
+    for idx, metric in enumerate(metrics):
+        with cols[idx]:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.2rem">{metric[0]}</span>
+                    <span style="font-weight:600">{metric[1]}</span>
+                </div>
+                <div class="card-value">{metric[2]}</div>
+                <div class="card-unit">{metric[3]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # 3. 数据分析图表
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">📊 数据分析</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 项目部发货量排名
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**项目部发货量排名**")
+        project_quantity = filtered_logistics.groupby('项目部')['数量'].sum().sort_values(ascending=False)
+        if not project_quantity.empty:
+            st.dataframe(
+                project_quantity.reset_index().rename(columns={'数量': '发货量(吨)'}),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("暂无项目部排名数据")
+    
+    with col2:
+        st.markdown("**钢厂供货量排名**")
+        factory_quantity = filtered_logistics.groupby('钢厂')['数量'].sum().sort_values(ascending=False)
+        if not factory_quantity.empty:
+            st.dataframe(
+                factory_quantity.reset_index().rename(columns={'数量': '供货量(吨)'}),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("暂无钢厂排名数据")
+    
+    # 4. 状态分布分析
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">📋 物流状态分布</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 合并状态数据
+    status_logistics = merge_logistics_with_status(filtered_logistics)
+    status_distribution = status_logistics['到货状态'].value_counts()
+    
+    if not status_distribution.empty:
+        cols = st.columns(2)
+        with cols[0]:
+            st.markdown("**状态分布统计**")
+            status_df = status_distribution.reset_index()
+            status_df.columns = ['到货状态', '数量']
+            st.dataframe(
+                status_df,
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        with cols[1]:
+            st.markdown("**状态占比**")
+            total_status = status_distribution.sum()
+            for status, count in status_distribution.items():
+                percentage = (count / total_status) * 100
+                st.write(f"{status}: {count}单 ({percentage:.1f}%)")
+    else:
+        st.info("暂无状态分布数据")
+
+
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
@@ -1166,85 +1459,22 @@ def show_data_panel(df, project):
             st.session_state.project_selected = False
             st.rerun()
 
-    tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
+    # 如果是总部用户，添加统计标签页
+    if project == "中铁物贸成都分公司":
+        tab1, tab2, tab3 = st.tabs(["📋 发货计划", "🚛 物流明细", "📊 数据统计"])
+    else:
+        tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
 
     with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0))
-        with col2:
-            end_date = st.date_input("结束日期", datetime.now())
-
-        if start_date > end_date:
-            st.error("日期范围无效")
-        else:
-            with st.spinner("筛选数据..."):
-                filtered_df = df if project == "中铁物贸成都分公司" else df[df[AppConfig.PROJECT_COLUMN] == project]
-                date_range_df = filtered_df[
-                    (filtered_df["下单时间"].dt.date >= start_date) &
-                    (filtered_df["下单时间"].dt.date <= end_date)
-                    ]
-
-                if not date_range_df.empty:
-                    display_metrics_cards(date_range_df)
-
-                    display_cols = {
-                        "标段名称": "工程标段",
-                        "物资名称": "材料名称",
-                        "规格型号": "规格型号",
-                        "需求量": "需求(吨)",
-                        "已发量": "已发(吨)",
-                        "剩余量": "待发(吨)",
-                        "超期天数": "超期天数",
-                        "下单时间": "下单时间",
-                        "计划进场时间": "计划进场时间"
-                    }
-
-                    available_cols = {k: v for k, v in display_cols.items() if k in date_range_df.columns}
-                    display_df = date_range_df[available_cols.keys()].rename(columns=available_cols)
-
-                    if "材料名称" in display_df.columns:
-                        display_df["材料名称"] = display_df["材料名称"].fillna("未指定物资")
-
-                    st.dataframe(
-                        display_df.style.format({
-                            '需求(吨)': '{:,}',
-                            '已发(吨)': '{:,}',
-                            '待发(吨)': '{:,}',
-                            '超期天数': '{:,}',
-                            '下单时间': lambda x: x.strftime('%Y-%m-%d') if not pd.isnull(x) else '',
-                            '计划进场时间': lambda x: x.strftime('%Y-%m-%d') if not pd.isnull(x) else ''
-                        }).apply(
-                            lambda row: ['background-color: #ffdddd' if row.get('超期天数', 0) > 0 else ''
-                                         for _ in row],
-                            axis=1
-                        ),
-                        use_container_width=True,
-                        height=min(600, 35 * len(display_df) + 40),
-                        hide_index=True
-                    )
-
-                    st.markdown("""
-                    <div class="remark-card plan-remark">
-                        <div class="remark-content">
-                            📢 以上计划已全部提报给公司
-                            📢 温馨提示：公司更新发货台账为当天下午6:00 ！！！
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                    st.download_button(
-                        "⬇️ 导出数据",
-                        display_df.to_csv(index=False).encode('utf-8-sig'),
-                        f"{project}_发货数据_{start_date}_{end_date}.csv",
-                        "text/csv",
-                        use_container_width=True
-                    )
-                else:
-                    st.info("该时间段无数据")
-
+        show_plan_tab(df, project)
+        
     with tab2:
         show_logistics_tab(project)
+        
+    # 新增统计标签页（仅总部可见）
+    if project == "中铁物贸成都分公司":
+        with tab3:
+            show_statistics_tab(df)
 
 
 # ==================== 主程序 ====================
@@ -1277,8 +1507,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
 
 
