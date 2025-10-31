@@ -2068,3 +2068,34 @@ hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 [2025-10-30 20:00:38] Git推送失败，正在重试 (3/3)
 [2025-10-30 20:00:48] 错误：Git推送失败！
 [2025-10-31 10:15:51] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2504358 Oct 31 10:15 发货计划（宜宾项目）汇总.xlsm
+[main 33b4616] 自动更新: 2025-10-31 10:15:52
+ 2 files changed, 31 insertions(+)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-31 10:15:57] Git推送失败，正在重试 (1/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-31 10:16:11] Git推送失败，正在重试 (2/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (fetch first)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the remote contains work that you do not
+hint: have locally. This is usually caused by another repository pushing to
+hint: the same ref. If you want to integrate the remote changes, use
+hint: 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-10-31 10:16:25] Git推送失败，正在重试 (3/3)
+[2025-10-31 10:16:35] 错误：Git推送失败！
+[2025-10-31 12:00:02] 文件复制成功: -rw-r--r-- 1 Administrator 197121 2504358 Oct 31 12:00 发货计划（宜宾项目）汇总.xlsm
