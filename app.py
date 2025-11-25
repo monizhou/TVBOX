@@ -21,9 +21,10 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
+    # 【修改点3】：在“联系人”右侧增加了“卸货地址”列
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
-        "交货时间", "联系人", "联系方式", "项目部",
+        "交货时间", "联系人", "卸货地址", "联系方式", "项目部",
         "到货状态", "备注"  # 保留到货状态和备注列
     ]
 
@@ -434,8 +435,13 @@ def load_data():
 
             if "计划进场时间" in df.columns:
                 df["计划进场时间"] = pd.to_datetime(df["计划进场时间"], errors='coerce').dt.tz_localize(None)
-                df["超期天数"] = ((pd.Timestamp.now() - df["计划进场时间"]).dt.days.clip(lower=0).fillna(0).astype(int))
-            else:
+            
+            # 【修改点1】：超期天数直接读取表格中的P列（第16列，索引为15）
+            try:
+                # 获取第16列数据 (索引从0开始，所以是15)
+                df["超期天数"] = safe_convert_to_numeric(df.iloc[:, 15]).astype(int)
+            except Exception:
+                # 如果获取失败，回退到默认值
                 df["超期天数"] = 0
 
             return df
@@ -497,6 +503,9 @@ def load_logistics_data():
 
             # 处理文本列
             df["联系方式"] = df["联系方式"].astype(str)
+            # 确保卸货地址列存在
+            if "卸货地址" in df.columns:
+                df["卸货地址"] = df["卸货地址"].astype(str).replace({"nan": "", "None": ""})
 
             # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
@@ -776,18 +785,20 @@ def get_valid_projects():
 
 # ==================== 页面组件 ====================
 def show_logistics_tab(project):
-    # 日期选择器布局调整 - 修改默认值为当天
+    # 【修改点2】：设置默认显示前一天的数据
+    yesterday = datetime.now().date() - timedelta(days=1)
+    
     date_col1, date_col2 = st.columns(2)
     with date_col1:
         logistics_start_date = st.date_input(
             "开始日期",
-            datetime.now().date(),
+            yesterday, # 默认为昨天
             key="logistics_start"
         )
     with date_col2:
         logistics_end_date = st.date_input(
             "结束日期",
-            datetime.now().date(),
+            yesterday, # 默认为昨天
             key="logistics_end"
         )
 
@@ -914,7 +925,7 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id和收货地址）
+            # 准备显示的列（排除record_id和收货地址，保留卸货地址）
             display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
             display_df = filtered_df[display_columns].copy()
 
@@ -950,8 +961,12 @@ def show_logistics_tab(project):
                         format="YYYY-MM-DD HH:mm",
                         width="medium"
                     ),
+                    "卸货地址": st.column_config.TextColumn(
+                        "卸货地址",
+                        width="medium"
+                    ),
                     **{col: {"width": "auto"} for col in display_columns if
-                       col not in ["到货状态", "备注", "数量", "交货时间"]}
+                       col not in ["到货状态", "备注", "数量", "交货时间", "卸货地址"]}
                 },
                 key=f"logistics_editor_{project}"
             )
@@ -1507,5 +1522,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
