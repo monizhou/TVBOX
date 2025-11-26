@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 赛博朋克驾驶舱版"""
+"""钢筋发货监控系统（中铁总部视图版）- 3D 智能驾驶舱版"""
 import os
 import re
 import time
@@ -9,8 +9,7 @@ import streamlit as st
 import requests
 import hashlib
 import json
-import plotly.express as px
-import plotly.graph_objects as go
+import pydeck as pdk  # 新增：用于3D地图渲染
 
 # ==================== 系统配置 ====================
 class AppConfig:
@@ -22,8 +21,6 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
-    
-    # 调整列顺序，"卸货地址" 放在 "联系人" 左边
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "卸货地址", "联系人", "联系方式", "项目部",
@@ -72,14 +69,57 @@ class AppConfig:
         "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
     }
 
-    # 清爽的卡片样式
+    # 【新增】地理坐标数据库 (City -> [Lon, Lat])
+    # 使用模糊匹配，不需要完全匹配项目名
+    CITY_COORDINATES = {
+        "宜宾": [104.6432, 28.7518],
+        "南溪": [104.9811, 28.8398],
+        "成都": [104.0665, 30.5723],
+        "龙泉": [104.2746, 30.5566],
+        "简阳": [104.5486, 30.3904],
+        "天府": [104.0757, 30.4045],
+        "双流": [103.9237, 30.5744],
+        "锦江": [104.0809, 30.5951],
+        "达州": [107.5022, 31.2094],
+        "乐山": [103.7656, 29.5520],
+        "射洪": [105.3892, 30.8712],
+        "酒城": [105.4422, 28.8715], # 泸州
+        "泸州": [105.4422, 28.8715],
+        "西渝": [108.0000, 31.0000], # 估算位置
+        "成达万": [106.5000, 31.5000], # 估算位置
+    }
+    # 默认中心点（成都）
+    DEFAULT_CENTER = [104.0665, 30.5723]
+
     CARD_STYLES = {
+        "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
         "glass_effect": """
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-radius: 10px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            border: 1px solid #f0f2f6;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        """,
+        "number_animation": """
+            @keyframes countup {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        """,
+        "floating_animation": """
+            @keyframes floating {
+                0% { transform: translateY(0px); }
+                50% { transform: translateY(-8px); }
+                100% { transform: translateY(0px); }
+            }
+        """,
+        "pulse_animation": """
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.03); }
+                100% { transform: scale(1); }
+            }
         """
     }
 
@@ -97,82 +137,143 @@ def find_data_file():
     st.error("❌ 未找到任何Excel数据文件")
     return None
 
+def get_project_coordinates(project_name):
+    """【新增】根据项目名称智能匹配坐标"""
+    if not isinstance(project_name, str):
+        return AppConfig.DEFAULT_CENTER
+    
+    # 随机微调因子（避免所有点重叠在一起）
+    def jitter(coord):
+        import random
+        return [coord[0] + random.uniform(-0.03, 0.03), coord[1] + random.uniform(-0.03, 0.03)]
+
+    # 遍历关键词库
+    for key, coord in AppConfig.CITY_COORDINATES.items():
+        if key in project_name:
+            return jitter(coord)
+            
+    # 如果包含“成都”或者默认
+    if "成都" in project_name or "华西" in project_name or "五冶" in project_name:
+         return jitter(AppConfig.CITY_COORDINATES["成都"])
+         
+    return jitter(AppConfig.DEFAULT_CENTER)
 
 def apply_card_styles():
     st.markdown(f"""
     <style>
         .remark-card {{
-            background: #f8f9fa;
-            border-radius: 8px;
+            background: rgba(245, 245, 247, 0.9);
+            border-radius: 10px;
             padding: 1rem;
-            margin: 1rem 0;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border-left: 4px solid;
-            color: #444;
         }}
-        .plan-remark {{ border-color: #3498db; }}
-        .logistics-remark {{ border-color: #2ecc71; }}
+        .plan-remark {{ border-color: #2196F3; }}
+        .logistics-remark {{ border-color: #4CAF50; }}
         .remark-content {{
             font-size: 1rem;
+            color: #666;
             text-align: center;
+            padding: 1rem;
         }}
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
             padding: 8px 0;
-            border-radius: 8px;
+            background: #f5f5f7;
+            border-radius: 12px;
+            margin: 1rem 0;
         }}
+        .stTabs [data-baseweb="tab"] {{
+            background: transparent !important;
+            padding: 12px 24px !important;
+            border: none !important;
+            color: #86868b !important;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            border-radius: 8px;
+            margin: 0 4px !important;
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{
+            background: rgba(0, 0, 0, 0.04) !important;
+            color: #1d1d1f !important;
+            transform: scale(1.02);
+        }}
+        .stTabs [aria-selected="true"] {{
+            background: #ffffff !important;
+            color: #1d1d1f !important;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
+                        inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+        }}
+        {AppConfig.CARD_STYLES['number_animation']}
+        {AppConfig.CARD_STYLES['floating_animation']}
+        {AppConfig.CARD_STYLES['pulse_animation']}
+
         .metric-container {{ 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
             gap: 1rem; 
             margin: 1rem 0; 
+            animation: fadeIn 0.6s ease-out;
         }}
         .metric-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
+            padding: 1.5rem;
         }}
         .metric-card:hover {{
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            transform: translateY(-5px);
+            box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
         }}
         .card-value {{
             font-size: 2rem;
             font-weight: 700;
-            color: #2c3e50;
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: countup 0.8s ease-out;
             margin: 0.5rem 0;
         }}
-        .card-unit {{
-            font-size: 0.9rem;
-            color: #666;
+        .batch-update-card {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
         }}
-        div[data-testid="stDataEditor"] table td {{
-            font-size: 13px !important;
-        }}
-        
-        /* 首页样式 */
-        .home-card {{
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            text-align: center;
-            transition: all 0.3s ease;
-            border: 1px solid #eee;
-            margin-bottom: 20px;
-        }}
-        .home-card:hover {{
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-        }}
-        .home-card-title {{
-            font-size: 1.4rem;
+        .batch-update-title {{
+            font-size: 1.2rem;
             font-weight: bold;
-            margin: 1rem 0;
+            margin-bottom: 1rem;
             color: #2c3e50;
         }}
-        .home-card-icon {{
-            font-size: 3rem;
-            margin-bottom: 1rem;
+        .stat-card {{
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid #FF6B6B;
         }}
+        .stat-title {{
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+        /* 地图容器样式 */
+        .map-container-title {
+            color: #00f2ea;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 10px #00f2ea;
+            margin-bottom: 10px;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -227,12 +328,6 @@ def send_feishu_notification(material_info):
     except Exception:
         return False
 
-def make_short_name(name, length=6):
-    """生成科技感缩写：取前几个字 + 标识符"""
-    if not isinstance(name, str): return str(name)
-    if len(name) <= length:
-        return name
-    return name[:length] + ".."
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=3600)
@@ -276,9 +371,6 @@ def load_data():
             df["需求量"] = safe_convert_to_numeric(df["需求量"]).astype(int)
             df["已发量"] = safe_convert_to_numeric(df.get("已发量", 0)).astype(int)
             df["剩余量"] = (df["需求量"] - df["已发量"]).clip(lower=0).astype(int)
-
-            if "计划进场时间" in df.columns:
-                df["计划进场时间"] = pd.to_datetime(df["计划进场时间"], errors='coerce').dt.tz_localize(None)
             
             try:
                 df["超期天数"] = safe_convert_to_numeric(df.iloc[:, 15]).astype(int)
@@ -301,13 +393,10 @@ def load_logistics_data():
         with st.spinner("正在加载物流数据..."):
             try:
                 df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
-                
-                # 强制从 G列 (索引6) 读取数据作为 "卸货地址"
                 if df.shape[1] > 6:
                     df["卸货地址"] = df.iloc[:, 6].astype(str).replace({"nan": "", "None": ""})
                 else:
                     df["卸货地址"] = ""
-                    
             except Exception:
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
@@ -459,8 +548,7 @@ def update_logistics_status(record_id, new_status, original_row=None):
                     "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(original_row["交货时间"]) else "未知",
                     "项目部": original_row["项目部"]
                 }
-                if send_feishu_notification(material_info):
-                    st.toast("已发送物流异常通知", icon="📨")
+                send_feishu_notification(material_info)
             return True
         return False
     except Exception:
@@ -472,6 +560,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         status_df = load_logistics_status()
         new_status = str(new_status).strip() if new_status else "公司统筹中"
         success_count = 0
+        error_count = 0
         
         for i, record_id in enumerate(record_ids):
             try:
@@ -504,10 +593,11 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                     send_feishu_notification(material_info)
                 success_count += 1
             except Exception:
+                error_count += 1
                 continue
 
         if save_logistics_status(status_df):
-            return success_count, 0
+            return success_count, error_count
         return 0, len(record_ids)
     except Exception:
         return 0, len(record_ids)
@@ -602,7 +692,8 @@ def show_logistics_tab(project):
                     """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("##### 📦 批量状态更新")
+            # 批量更新
+            st.markdown("""<div class="batch-update-card"><div class="batch-update-title">📦 批量更新到货状态</div></div>""", unsafe_allow_html=True)
             b_col1, b_col2, b_col3 = st.columns([2, 2, 1])
             with b_col1:
                 record_map = {f"{r['物资名称']} - {r['规格型号']} - {r['钢厂']} - {r['数量']}吨": r['record_id'] for _, r in filtered.iterrows()}
@@ -612,7 +703,7 @@ def show_logistics_tab(project):
             with b_col3:
                 st.write("")
                 st.write("")
-                if st.button("🚀 更新", type="primary") and sel_recs:
+                if st.button("🚀 批量更新", type="primary") and sel_recs:
                     ids = [record_map[k] for k in sel_recs]
                     rows = [filtered[filtered['record_id'] == i].iloc[0] for i in ids]
                     s, e = batch_update_logistics_status(ids, new_st, rows)
@@ -672,202 +763,37 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
         time.sleep(1)
         st.rerun()
 
-
-def show_interactive_cockpit(df):
-    """双模智能驾驶舱 - 升级版 (Cyberpunk Style)"""
-    st.markdown("""
-    <style>
-        /* 驾驶舱专用标题特效 */
-        .cockpit-title {
-            font-family: 'Courier New', monospace;
-            color: #00f2ea;
-            text-shadow: 0 0 10px #00f2ea;
-            border-bottom: 2px solid #00f2ea;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-            letter-spacing: 2px;
-        }
-        /* 强制背景色融合 */
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: transparent;
-        }
-    </style>
-    <h3 class="cockpit-title">🛸 G.L.M.S - 全局物流监控指控中心</h3>
-    """, unsafe_allow_html=True)
-    
-    # --- 筛选器 ---
-    with st.expander("⚙️ 战术板配置 (Data Config)", expanded=False):
-        all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
-        all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
-        
-        # 智能地址处理
-        if "卸货地址" in df.columns:
-            df["显示地址"] = df["卸货地址"].replace("", None).fillna(df["项目部"])
-        else:
-            df["显示地址"] = df["项目部"]
-            
-        col1, col2 = st.columns(2)
-        with col1:
-            sel_projects = st.multiselect("🏗️ 目标阵地 (Project)", all_projects, default="全部")
-        with col2:
-            sel_factories = st.multiselect("🏭 供应源点 (Factory)", all_factories, default="全部")
-            
-    # --- 数据过滤 ---
-    filtered = df.copy()
-    if "全部" not in sel_projects and sel_projects:
-        filtered = filtered[filtered["项目部"].isin(sel_projects)]
-    if "全部" not in sel_factories and sel_factories:
-        filtered = filtered[filtered["钢厂"].isin(sel_factories)]
-        
-    if filtered.empty:
-        st.warning("⚠️ 区域无信号 (No Data)")
+def display_metrics_cards(filtered_df):
+    if filtered_df.empty:
         return
+    total = int(filtered_df["需求量"].sum())
+    shipped = int(filtered_df["已发量"].sum())
+    pending = int(filtered_df["剩余量"].sum())
+    overdue = len(filtered_df[filtered_df["超期天数"] > 0])
+    max_overdue = filtered_df["超期天数"].max() if overdue > 0 else 0
 
-    # 生成缩写以解决长文件名问题
-    filtered["Project_Short"] = filtered["显示地址"].apply(lambda x: make_short_name(x, 6))
-    filtered["Factory_Short"] = filtered["钢厂"].apply(lambda x: make_short_name(x, 4))
-
-    tab1, tab2 = st.tabs(["⚡ 供应链·通量视图 (Sankey)", "📟 活跃度·矩阵视图 (Matrix)"])
-
-    # ================= 方案一：赛博流向图 (Sankey) =================
-    with tab1:
-        st.caption(">>> 视图说明：展示物资从钢厂流向项目的流量分布。线条越粗，发货量越大。")
-        
-        # 聚合数据
-        sankey_data = filtered.groupby(["钢厂", "显示地址", "Project_Short"])["数量"].sum().reset_index()
-        
-        # 准备节点
-        unique_sources = list(sankey_data["钢厂"].unique())
-        unique_targets = list(sankey_data["显示地址"].unique())
-        all_nodes = unique_sources + unique_targets
-        
-        # 映射索引
-        node_map = {name: i for i, name in enumerate(all_nodes)}
-        
-        # 构建连接
-        sources = [node_map[row["钢厂"]] for _, row in sankey_data.iterrows()]
-        targets = [node_map[row["显示地址"]] for _, row in sankey_data.iterrows()]
-        values = sankey_data["数量"].values
-        
-        # 颜色配置 (Neon Palette)
-        # 源节点用亮青色，目标节点用洋红色，连接线用半透明渐变
-        node_colors = ["#00f2ea"] * len(unique_sources) + ["#ff0055"] * len(unique_targets)
-        
-        fig_sankey = go.Figure(data=[go.Sankey(
-            node=dict(
-                pad=15,
-                thickness=20,
-                line=dict(color="black", width=0.5),
-                label=[make_short_name(n, 8) for n in all_nodes], # 节点显示缩写
-                customdata=all_nodes, # 悬停显示全名
-                hovertemplate='节点: %{customdata}<br>总量: %{value}吨<extra></extra>',
-                color=node_colors
-            ),
-            link=dict(
-                source=sources,
-                target=targets,
-                value=values,
-                color='rgba(50, 200, 255, 0.2)' # 半透明光束
-            )
-        )])
-        
-        fig_sankey.update_layout(
-            height=600,
-            font=dict(size=12, color="white", family="Monospace"),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            title_text="SUPPLY CHAIN FLUX MONITOR",
-            title_font_color="#00f2ea",
-        )
-        st.plotly_chart(fig_sankey, use_container_width=True)
-
-    # ================= 方案二：数字矩阵热力图 (Heatmap) =================
-    with tab2:
-        st.caption(">>> 视图说明：深色代表无货，高亮色块代表收货高峰。横轴为日期，纵轴为项目。")
-        
-        hm_data = filtered.copy()
-        hm_data["日期"] = hm_data["交货时间"].dt.strftime("%Y-%m-%d")
-        
-        # 聚合矩阵
-        matrix = hm_data.groupby(["Project_Short", "日期"])["数量"].sum().reset_index()
-        
-        # 填充完整全名用于Tooltip
-        # 这里做一个映射字典
-        name_map = dict(zip(hm_data["Project_Short"], hm_data["显示地址"]))
-        matrix["Full_Name"] = matrix["Project_Short"].map(name_map)
-        
-        fig_heatmap = px.density_heatmap(
-            matrix,
-            x="日期",
-            y="Project_Short",
-            z="数量",
-            color_continuous_scale="Electric", # 极具科技感的蓝-紫-黄渐变
-            hover_data={"Full_Name": True, "Project_Short": False, "数量": True},
-            title="DELIVERY INTENSITY MATRIX",
-            template="plotly_dark"
-        )
-        
-        fig_heatmap.update_layout(
-            height=650,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(10,10,20,0.8)',
-            xaxis=dict(
-                title="TIMELINE", 
-                showgrid=False, 
-                tickfont=dict(color="#00f2ea", family="Monospace")
-            ),
-            yaxis=dict(
-                title="PROJECT SECTOR", 
-                showgrid=True, 
-                gridcolor='rgba(255,255,255,0.1)',
-                tickfont=dict(color="#ff0055", family="Monospace", size=14)
-            ),
-            font=dict(family="Courier New"),
-            coloraxis_colorbar=dict(title="TONS")
-        )
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-
-
-def show_data_panel(df, project):
-    st.title(f"{project} - 发货数据")
-    
-    col1, col2 = st.columns([1, 6])
-    with col1:
-        if st.button("🔄 刷新"):
-            st.cache_data.clear()
-            st.rerun()
-    with col2:
-        if st.button("🏠 返回首页"):
-            st.session_state.project_selected = False
-            st.rerun()
-
-    if project == "中铁物贸成都分公司":
-        analysis_df = load_logistics_data()
-        tabs = ["📋 发货计划", "🚛 物流明细", "📊 数据统计", "🚀 智能驾驶舱"]
-    else:
-        full = load_logistics_data()
-        analysis_df = full[full["项目部"] == project]
-        tabs = ["📋 发货计划", "🚛 物流明细", "🚀 智能驾驶舱"]
-    
-    if not analysis_df.empty:
-        analysis_df = merge_logistics_with_status(analysis_df)
-
-    selected_tabs = st.tabs(tabs)
-
-    with selected_tabs[0]:
-        show_plan_tab(df, project)
-    
-    with selected_tabs[1]:
-        show_logistics_tab(project)
-        
-    if project == "中铁物贸成都分公司":
-        with selected_tabs[2]:
-            show_statistics_tab(df)
-        with selected_tabs[3]:
-            show_interactive_cockpit(analysis_df)
-    else:
-        with selected_tabs[2]:
-            show_interactive_cockpit(analysis_df)
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    cols = st.columns(4)
+    metrics = [
+        ("📦", "总需求量", f"{total:,}", "吨", "total"),
+        ("🚚", "已发货量", f"{shipped:,}", "吨", "shipped"),
+        ("⏳", "待发货量", f"{pending:,}", "吨", "pending"),
+        ("⚠️", "超期订单", f"{overdue}", "单", "overdue", f"最大超期: {max_overdue}天" if overdue > 0 else "")
+    ]
+    for idx, metric in enumerate(metrics):
+        with cols[idx]:
+            st.markdown(f"""
+            <div class="metric-card {metric[4]}">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.2rem">{metric[0]}</span>
+                    <span style="font-weight:600">{metric[1]}</span>
+                </div>
+                <div class="card-value">{metric[2]}</div>
+                <div class="card-unit">{metric[3]}</div>
+                {f'<div style="font-size:0.8rem; color:#666;">{metric[5]}</div>' if len(metric) > 5 else ''}
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def show_plan_tab(df, project):
@@ -880,31 +806,17 @@ def show_plan_tab(df, project):
     res = filtered[mask]
     
     if not res.empty:
-        # 【修复点】仅筛选存在的列
+        display_metrics_cards(res)
         target_cols = {
             "标段名称": "工程标段", "物资名称": "材料名称", "规格型号": "规格型号",
             "需求量": "需求(吨)", "已发量": "已发(吨)", "剩余量": "待发(吨)",
             "超期天数": "超期天数", "下单时间": "下单", "计划进场时间": "计划进场"
         }
-        # 动态获取可用列
         available = {k: v for k, v in target_cols.items() if k in res.columns}
-        
         disp = res[list(available.keys())].rename(columns=available)
         
-        # 动态格式化
-        formats = {}
-        if "需求(吨)" in disp.columns: formats["需求(吨)"] = "{:,}"
-        if "已发(吨)" in disp.columns: formats["已发(吨)"] = "{:,}"
-        if "待发(吨)" in disp.columns: formats["待发(吨)"] = "{:,}"
-        
-        # 日期格式化
-        if "下单" in disp.columns:
-            disp["下单"] = disp["下单"].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '')
-        if "计划进场" in disp.columns:
-            disp["计划进场"] = disp["计划进场"].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '')
-
         st.dataframe(
-            disp.style.format(formats).apply(
+            disp.style.format({'需求(吨)': '{:,}', '已发(吨)': '{:,}', '待发(吨)': '{:,}'}).apply(
                 lambda row: ['background-color: #ffdddd' if '超期天数' in row and row.get('超期天数', 0) > 0 else '' for _ in row],
                 axis=1
             ),
@@ -922,6 +834,147 @@ def show_statistics_tab(df):
     
     grp = log_df.groupby(['项目部', '钢厂'])['数量'].sum().reset_index()
     st.dataframe(grp, use_container_width=True)
+
+
+# ==================== 【新增】3D 智能驾驶舱 ====================
+def show_cockpit_tab():
+    st.markdown('<h3 class="map-container-title">🛸 G.L.M.S - 3D 战术指挥地图</h3>', unsafe_allow_html=True)
+    
+    # 1. 准备数据
+    logistics_df = load_logistics_data()
+    if logistics_df.empty:
+        st.info("暂无物流数据，无法展示地图")
+        return
+
+    # 聚合数据：每个项目部的总发货量
+    map_data = logistics_df.groupby("项目部")["数量"].sum().reset_index()
+    
+    # 2. 映射坐标
+    # 使用 apply 逐行获取坐标
+    map_data["coord"] = map_data["项目部"].apply(get_project_coordinates)
+    map_data["lon"] = map_data["coord"].apply(lambda x: x[0])
+    map_data["lat"] = map_data["coord"].apply(lambda x: x[1])
+    
+    # 3. 交互控制器（放在地图上方）
+    col_sel, col_info = st.columns([1, 2])
+    with col_sel:
+        # 下拉选择框：选择一个项目来点亮/聚焦
+        selected_project_name = st.selectbox(
+            "🔭 选择目标阵地 (Focus Target)", 
+            options=["全部显示"] + list(map_data["项目部"].unique())
+        )
+    
+    # 确定地图视角
+    view_state = pdk.ViewState(
+        latitude=30.5,
+        longitude=104.5,
+        zoom=7,
+        pitch=45,
+    )
+    
+    # 如果选择了具体项目，改变视角
+    if selected_project_name != "全部显示":
+        target_row = map_data[map_data["项目部"] == selected_project_name].iloc[0]
+        view_state = pdk.ViewState(
+            latitude=target_row["lat"],
+            longitude=target_row["lon"],
+            zoom=10,
+            pitch=55,
+        )
+        # 在右侧显示该项目的详细信息
+        with col_info:
+            detail_df = logistics_df[logistics_df["项目部"] == selected_project_name]
+            total_tons = detail_df["数量"].sum()
+            trucks = len(detail_df)
+            st.info(f"📍 **{selected_project_name}**\n\n🚚 累计发货：{total_tons} 吨 | 📦 车次：{trucks} 车")
+
+    # 4. 构建地图图层
+    
+    # 图层1：3D 柱状图 (ColumnLayer) - 代表发货量
+    column_layer = pdk.Layer(
+        "ColumnLayer",
+        data=map_data,
+        get_position=["lon", "lat"],
+        get_elevation="数量",
+        elevation_scale=50,  # 高度缩放
+        radius=2000,         # 柱子半径（米）
+        get_fill_color=[0, 242, 234, 140],  # 赛博青色，带透明度
+        pickable=True,
+        auto_highlight=True,
+    )
+
+    # 图层2：文字标签 (TextLayer) - 显示项目名
+    text_layer = pdk.Layer(
+        "TextLayer",
+        data=map_data,
+        get_position=["lon", "lat"],
+        get_text="项目部",
+        get_color=[255, 255, 255],
+        get_size=16,
+        get_alignment_baseline="'bottom'",
+        get_text_anchor="'middle'",
+        pickable=False,
+    )
+
+    # 5. 渲染地图
+    tooltip = {
+        "html": "<b>{项目部}</b><br/>📊 总发货量: <b>{数量}</b> 吨",
+        "style": {"backgroundColor": "steelblue", "color": "white"}
+    }
+
+    r = pdk.Deck(
+        layers=[column_layer, text_layer],
+        initial_view_state=view_state,
+        map_style=pdk.map_styles.DARK, # 深色地图基底
+        tooltip=tooltip,
+    )
+    
+    st.pydeck_chart(r)
+    
+    # 下方显示选中项目的具体明细
+    if selected_project_name != "全部显示":
+        st.markdown("#### 📝 目标阵地发货明细")
+        detail_view = logistics_df[logistics_df["项目部"] == selected_project_name][
+            ["交货时间", "物资名称", "规格型号", "钢厂", "数量", "车牌号" if "车牌号" in logistics_df.columns else "数量"]
+        ].sort_values("交货时间", ascending=False)
+        st.dataframe(detail_view, use_container_width=True, hide_index=True)
+
+
+def show_data_panel(df, project):
+    st.title(f"{project} - 发货数据")
+    
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        if st.button("🔄 刷新"):
+            st.cache_data.clear()
+            st.rerun()
+    with col2:
+        if st.button("🏠 返回首页"):
+            st.session_state.project_selected = False
+            st.rerun()
+
+    if project == "中铁物贸成都分公司":
+        # 总部视图：包含智能驾驶舱
+        tabs = ["🚀 智能驾驶舱", "📋 发货计划", "🚛 物流明细", "📊 数据统计"]
+        selected_tabs = st.tabs(tabs)
+        
+        with selected_tabs[0]:
+            show_cockpit_tab()
+        with selected_tabs[1]:
+            show_plan_tab(df, project)
+        with selected_tabs[2]:
+            show_logistics_tab(project)
+        with selected_tabs[3]:
+            show_statistics_tab(df)
+            
+    else:
+        # 项目部视图：不显示3D地图，只关注自己的数据
+        tabs = ["📋 发货计划", "🚛 物流明细"]
+        selected_tabs = st.tabs(tabs)
+        with selected_tabs[0]:
+            show_plan_tab(df, project)
+        with selected_tabs[1]:
+            show_logistics_tab(project)
 
 
 def show_project_selection(df):
