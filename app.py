@@ -415,7 +415,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
     return cnt, 0
 
 
-# ==================== 【全中文】3D 飞线驾驶舱 ====================
+# ==================== 【修复版】3D 飞线驾驶舱 ====================
 def show_cockpit_tab():
     st.markdown('<h3 class="map-container-title">🛸 G.L.M.S - 3D 飞线战术地图</h3>', unsafe_allow_html=True)
     
@@ -452,7 +452,9 @@ def show_cockpit_tab():
     with col_sel:
         selected_proj = st.selectbox("🔭 聚焦阵地", ["全部显示"] + sorted(list(valid_data["项目部"].unique())))
 
-    view_state = pdk.ViewState(latitude=30.8, longitude=105.0, zoom=6.5, pitch=60)
+    # 默认视角：俯视四川
+    view_state = pdk.ViewState(latitude=30.8, longitude=105.0, zoom=6.5, pitch=55)
+    
     if selected_proj != "全部显示":
         target = valid_data[valid_data["项目部"] == selected_proj].iloc[0]
         view_state = pdk.ViewState(latitude=target["t_lat"], longitude=target["t_lon"], zoom=9, pitch=60, bearing=30)
@@ -460,14 +462,14 @@ def show_cockpit_tab():
     # ================= 3D 图层构建 =================
     layers = []
     
-    # 0. 底图层：强制使用【智图-深蓝夜色】中文瓦片
+    # 【核心修复】：更换为 CartoDB Dark Matter (全球最稳定的深色底图，支持 HTTPS)
+    # 虽然底图文字较少，但配合我们的中文 TextLayer，效果是最好的
     base_map_layer = pdk.Layer(
         "TileLayer",
         data=None,
-        # GeoQ 智图 - 深蓝夜色 (全中文)
-        get_tile_data="https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}",
+        get_tile_data="https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
         min_zoom=0,
-        max_zoom=16,
+        max_zoom=19,
         tileSize=256,
         pickable=False,
     )
@@ -505,17 +507,19 @@ def show_cockpit_tab():
     )
     layers.append(column_layer)
 
-    # 3. 文本层 (中文标注，弥补底图字体过小的问题)
+    # 3. 文本层 (显示中文项目名)
     text_layer = pdk.Layer(
         "TextLayer",
         data=proj_agg,
         get_position=["t_lon", "t_lat"],
         get_text="项目部",
         get_color=[255, 255, 255],
-        get_size=13,
+        get_size=14,
         get_alignment_baseline="'bottom'",
         get_text_anchor="'middle'",
         get_pixel_offset=[0, -15],
+        # 强制显示字体，防止被遮挡
+        character_set="auto" 
     )
     layers.append(text_layer)
 
@@ -524,12 +528,14 @@ def show_cockpit_tab():
         "style": {"backgroundColor": "#111", "color": "#fff", "border": "1px solid #00f2ea"}
     }
     
+    # 渲染 Deck
+    # parameters={"background": [0, 0, 0, 255]} 确保底图加载慢时背景是黑的，不是白的
     st.pydeck_chart(pdk.Deck(
         map_provider=None, 
         initial_view_state=view_state,
         layers=layers,
         tooltip=tooltip,
-        parameters={"blendFunc": [770, 771]} 
+        parameters={"blendFunc": [770, 771], "background": [10, 10, 20, 255]} 
     ))
 
     if selected_proj != "全部显示":
@@ -728,3 +734,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
