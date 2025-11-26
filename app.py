@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 全中文深蓝地图版"""
+"""钢筋发货监控系统（中铁总部视图版）- 全中文深蓝地图修复版"""
 import os
 import re
 import time
@@ -41,7 +41,6 @@ class AppConfig:
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
 
-    # 项目名称映射
     PROJECT_MAPPING = {
         "ztwm": "中铁物贸成都分公司",
         "sdtjdzzyykjy": "商投建工达州中医药科技园",
@@ -134,7 +133,7 @@ def get_coordinates(name, db, default_jitter=True):
             
     # 2. 默认值
     if base_coord is None:
-        return None # 返回None表示没找到
+        return None 
             
     # 3. 随机抖动 (防止点重合)
     if default_jitter:
@@ -200,7 +199,6 @@ def apply_card_styles():
             margin-bottom: 1rem;
             color: #2c3e50;
         }}
-        /* 地图容器样式 */
         .map-container-title {{
             color: #00f2ea;
             font-family: 'Courier New', monospace;
@@ -463,7 +461,6 @@ def show_cockpit_tab():
     layers = []
     
     # 0. 底图层：强制使用【智图-深蓝夜色】中文瓦片
-    # 这是一个公开的深色中文地图服务，不需要Key，是“全中文”的关键
     base_map_layer = pdk.Layer(
         "TileLayer",
         data=None,
@@ -527,13 +524,12 @@ def show_cockpit_tab():
         "style": {"backgroundColor": "#111", "color": "#fff", "border": "1px solid #00f2ea"}
     }
     
-    # 注意：设置 map_provider=None 禁用默认的 Mapbox/Google，只显示我们的中文 TileLayer
     st.pydeck_chart(pdk.Deck(
         map_provider=None, 
         initial_view_state=view_state,
         layers=layers,
         tooltip=tooltip,
-        parameters={"blendFunc": [770, 771]} # 优化透明度混合
+        parameters={"blendFunc": [770, 771]} 
     ))
 
     if selected_proj != "全部显示":
@@ -542,7 +538,101 @@ def show_cockpit_tab():
         st.dataframe(dt[["交货时间", "物资名称", "钢厂", "数量", "到货状态"]].head(10), use_container_width=True)
 
 
-# ==================== 其他 Tab 组件 (精简显示) ====================
+# ==================== 物流明细 Tab (修复版) ====================
+def auto_process_logistics_changes(edited_df, original_filtered_df, project):
+    if f'logistics_editor_{project}' not in st.session_state: return
+    changed = st.session_state[f'logistics_editor_{project}'].get('edited_rows', {})
+    if not changed: return
+
+    pkey = f"processed_changes_{project}"
+    if pkey not in st.session_state: st.session_state[pkey] = set()
+
+    count = 0
+    for idx_str, changes in changed.items():
+        chash = f"{idx_str}_{changes.get('到货状态', '')}"
+        if chash not in st.session_state[pkey]:
+            st.session_state[pkey].add(chash)
+            try:
+                idx = int(idx_str)
+                if idx < len(original_filtered_df):
+                    rec_id = original_filtered_df.iloc[idx]["record_id"]
+                    orig = original_filtered_df.iloc[idx]
+                    nst = changes.get("到货状态", orig["到货状态"])
+                    if nst != orig["到货状态"]:
+                        if update_logistics_status(rec_id, nst, orig):
+                            count += 1
+                            st.toast(f"✅ {orig['物资名称']} 状态更新", icon="ok")
+            except: pass
+    
+    if count > 0:
+        time.sleep(1)
+        st.rerun()
+
+def show_logistics_tab(project):
+    yesterday = datetime.now().date() - timedelta(days=1)
+    col1, col2 = st.columns(2)
+    with col1: start = st.date_input("开始日期", yesterday, key="log_s")
+    with col2: end = st.date_input("结束日期", yesterday, key="log_e")
+
+    with st.spinner("加载物流信息..."):
+        df = load_logistics_data()
+        if project != "中铁物贸成都分公司":
+            df = df[df["项目部"] == project]
+
+        if not df.empty:
+            df = merge_logistics_with_status(df)
+            mask = (df["交货时间"] >= pd.to_datetime(start)) & (df["交货时间"] < pd.to_datetime(end) + timedelta(days=1))
+            filtered = df[mask].copy()
+
+            # Metrics
+            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+            total = len(filtered)
+            arrived = filtered['到货状态'].eq('已到货').sum()
+            overdue = filtered['到货状态'].eq('未到货').sum()
+            progress = total - arrived - overdue
+            cols = st.columns(4)
+            metrics = [("📦 总单数", total), ("✅ 已到货", arrived), ("🔄 进行中", progress), ("⚠️ 未到货", overdue)]
+            for i, (l, v) in enumerate(metrics):
+                with cols[i]:
+                    st.markdown(f'<div class="metric-card"><div style="font-size:1.2rem">{l}</div><div class="card-value">{v}</div></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Batch Update
+            st.markdown("""<div class="batch-update-card"><div class="batch-update-title">📦 批量更新到货状态</div></div>""", unsafe_allow_html=True)
+            b1, b2, b3 = st.columns([2, 1, 1])
+            with b1:
+                rmap = {f"{r['物资名称']}-{r['钢厂']}-{r['数量']}t": r['record_id'] for _, r in filtered.iterrows()}
+                sels = st.multiselect("选择记录", list(rmap.keys()))
+            with b2:
+                nst = st.selectbox("状态", AppConfig.STATUS_OPTIONS)
+            with b3:
+                st.write(""); st.write("")
+                if st.button("🚀 更新", type="primary") and sels:
+                    ids = [rmap[k] for k in sels]
+                    rows = [filtered[filtered['record_id'] == i].iloc[0] for i in ids]
+                    s, e = batch_update_logistics_status(ids, nst, rows)
+                    if s > 0: st.success(f"已更新 {s} 条"); st.rerun()
+
+            # Data Editor
+            disp_cols = [c for c in filtered.columns if c not in ["record_id", "收货地址"]]
+            disp_df = filtered[disp_cols].reset_index(drop=True)
+            st.markdown("**物流明细表** (修改自动保存)")
+            edited = st.data_editor(
+                disp_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "到货状态": st.column_config.SelectboxColumn("到货状态", options=AppConfig.STATUS_OPTIONS, required=True),
+                    "交货时间": st.column_config.DatetimeColumn("交货时间", format="YYYY-MM-DD HH:mm"),
+                },
+                key=f"logistics_editor_{project}"
+            )
+            auto_process_logistics_changes(edited, filtered, project)
+        else:
+            st.info("📭 当前无数据")
+
+
+# ==================== 其他 Tab 组件 ====================
 def show_plan_tab(df, project):
     col1, col2 = st.columns(2)
     with col1: start = st.date_input("开始", datetime.now(), key="ps")
