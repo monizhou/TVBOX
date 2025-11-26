@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 双模驾驶舱版"""
+"""钢筋发货监控系统（中铁总部视图版）- 赛博朋克驾驶舱版"""
 import os
 import re
 import time
@@ -227,6 +227,12 @@ def send_feishu_notification(material_info):
     except Exception:
         return False
 
+def make_short_name(name, length=6):
+    """生成科技感缩写：取前几个字 + 标识符"""
+    if not isinstance(name, str): return str(name)
+    if len(name) <= length:
+        return name
+    return name[:length] + ".."
 
 # ==================== 数据加载 ====================
 @st.cache_data(ttl=3600)
@@ -668,14 +674,33 @@ def auto_process_logistics_changes(edited_df, original_filtered_df, project):
 
 
 def show_interactive_cockpit(df):
-    """双模智能驾驶舱"""
-    st.markdown("### 🚀 智能物流驾驶舱 (Intelligent Logistics Cockpit)")
+    """双模智能驾驶舱 - 升级版 (Cyberpunk Style)"""
+    st.markdown("""
+    <style>
+        /* 驾驶舱专用标题特效 */
+        .cockpit-title {
+            font-family: 'Courier New', monospace;
+            color: #00f2ea;
+            text-shadow: 0 0 10px #00f2ea;
+            border-bottom: 2px solid #00f2ea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        /* 强制背景色融合 */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: transparent;
+        }
+    </style>
+    <h3 class="cockpit-title">🛸 G.L.M.S - 全局物流监控指控中心</h3>
+    """, unsafe_allow_html=True)
     
     # --- 筛选器 ---
-    with st.expander("⚙️ 数据筛选配置", expanded=False):
+    with st.expander("⚙️ 战术板配置 (Data Config)", expanded=False):
         all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
         all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
         
+        # 智能地址处理
         if "卸货地址" in df.columns:
             df["显示地址"] = df["卸货地址"].replace("", None).fillna(df["项目部"])
         else:
@@ -683,9 +708,9 @@ def show_interactive_cockpit(df):
             
         col1, col2 = st.columns(2)
         with col1:
-            sel_projects = st.multiselect("🏗️ 项目部", all_projects, default="全部")
+            sel_projects = st.multiselect("🏗️ 目标阵地 (Project)", all_projects, default="全部")
         with col2:
-            sel_factories = st.multiselect("🏭 钢厂", all_factories, default="全部")
+            sel_factories = st.multiselect("🏭 供应源点 (Factory)", all_factories, default="全部")
             
     # --- 数据过滤 ---
     filtered = df.copy()
@@ -695,85 +720,112 @@ def show_interactive_cockpit(df):
         filtered = filtered[filtered["钢厂"].isin(sel_factories)]
         
     if filtered.empty:
-        st.warning("⚠️ 暂无监控数据")
+        st.warning("⚠️ 区域无信号 (No Data)")
         return
 
-    # --- 准备数据 ---
-    anim_df = filtered[["交货时间", "钢厂", "显示地址", "数量", "物资名称"]].copy()
-    anim_df["日期"] = anim_df["交货时间"].dt.date
-    
-    min_date = anim_df["日期"].min()
-    max_date = anim_df["日期"].max()
-    
-    if pd.isna(min_date) or pd.isna(max_date):
-        st.info("日期数据无效")
-        return
+    # 生成缩写以解决长文件名问题
+    filtered["Project_Short"] = filtered["显示地址"].apply(lambda x: make_short_name(x, 6))
+    filtered["Factory_Short"] = filtered["钢厂"].apply(lambda x: make_short_name(x, 4))
 
-    tab1, tab2 = st.tabs(["🌌 方案一：时空流光瀑布", "📡 方案二：战术供需雷达"])
+    tab1, tab2 = st.tabs(["⚡ 供应链·通量视图 (Sankey)", "📟 活跃度·矩阵视图 (Matrix)"])
 
-    # ================= 方案一：时空流光瀑布 (Waterfall) =================
+    # ================= 方案一：赛博流向图 (Sankey) =================
     with tab1:
-        st.caption(">>> 视图说明：展示随时间推移，各收货点的物资到达情况。横轴为时间，纵轴为地点。")
-        fig_waterfall = px.scatter(
-            anim_df,
-            x="交货时间",
-            y="显示地址",
-            size="数量",
-            color="钢厂", 
-            hover_name="物资名称",
-            size_max=40,
-            title="LOGISTICS TIME-SPACE FLOW",
-            template="plotly_dark"
-        )
+        st.caption(">>> 视图说明：展示物资从钢厂流向项目的流量分布。线条越粗，发货量越大。")
         
-        fig_waterfall.update_layout(
-            height=650,
+        # 聚合数据
+        sankey_data = filtered.groupby(["钢厂", "显示地址", "Project_Short"])["数量"].sum().reset_index()
+        
+        # 准备节点
+        unique_sources = list(sankey_data["钢厂"].unique())
+        unique_targets = list(sankey_data["显示地址"].unique())
+        all_nodes = unique_sources + unique_targets
+        
+        # 映射索引
+        node_map = {name: i for i, name in enumerate(all_nodes)}
+        
+        # 构建连接
+        sources = [node_map[row["钢厂"]] for _, row in sankey_data.iterrows()]
+        targets = [node_map[row["显示地址"]] for _, row in sankey_data.iterrows()]
+        values = sankey_data["数量"].values
+        
+        # 颜色配置 (Neon Palette)
+        # 源节点用亮青色，目标节点用洋红色，连接线用半透明渐变
+        node_colors = ["#00f2ea"] * len(unique_sources) + ["#ff0055"] * len(unique_targets)
+        
+        fig_sankey = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=[make_short_name(n, 8) for n in all_nodes], # 节点显示缩写
+                customdata=all_nodes, # 悬停显示全名
+                hovertemplate='节点: %{customdata}<br>总量: %{value}吨<extra></extra>',
+                color=node_colors
+            ),
+            link=dict(
+                source=sources,
+                target=targets,
+                value=values,
+                color='rgba(50, 200, 255, 0.2)' # 半透明光束
+            )
+        )])
+        
+        fig_sankey.update_layout(
+            height=600,
+            font=dict(size=12, color="white", family="Monospace"),
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(20,20,30,0.9)',
-            xaxis=dict(showgrid=False, title="TIME LINE"),
-            yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)', title="DESTINATION"),
-            font=dict(family="Monospace")
+            plot_bgcolor='rgba(0,0,0,0)',
+            title_text="SUPPLY CHAIN FLUX MONITOR",
+            title_font_color="#00f2ea",
         )
-        st.plotly_chart(fig_waterfall, use_container_width=True)
+        st.plotly_chart(fig_sankey, use_container_width=True)
 
-    # ================= 方案二：战术供需雷达 (Radar/Matrix) =================
+    # ================= 方案二：数字矩阵热力图 (Heatmap) =================
     with tab2:
-        st.caption(">>> 视图说明：动态监控供需关系。点击播放，查看每日发货脉冲。")
+        st.caption(">>> 视图说明：深色代表无货，高亮色块代表收货高峰。横轴为日期，纵轴为项目。")
         
-        grouped = anim_df.groupby(["日期", "钢厂", "显示地址", "物资名称"])["数量"].sum().reset_index()
-        grouped["日期Str"] = grouped["日期"].astype(str)
-        grouped = grouped.sort_values("日期")
+        hm_data = filtered.copy()
+        hm_data["日期"] = hm_data["交货时间"].dt.strftime("%Y-%m-%d")
         
-        fig_radar = px.scatter(
-            grouped,
-            x="钢厂",
-            y="显示地址",
-            size="数量",
-            color="物资名称",
-            animation_frame="日期Str",
-            animation_group="显示地址",
-            size_max=50,
-            hover_name="物资名称",
-            range_x=[-0.5, len(grouped["钢厂"].unique())-0.5],
-            range_y=[-0.5, len(grouped["显示地址"].unique())-0.5],
+        # 聚合矩阵
+        matrix = hm_data.groupby(["Project_Short", "日期"])["数量"].sum().reset_index()
+        
+        # 填充完整全名用于Tooltip
+        # 这里做一个映射字典
+        name_map = dict(zip(hm_data["Project_Short"], hm_data["显示地址"]))
+        matrix["Full_Name"] = matrix["Project_Short"].map(name_map)
+        
+        fig_heatmap = px.density_heatmap(
+            matrix,
+            x="日期",
+            y="Project_Short",
+            z="数量",
+            color_continuous_scale="Electric", # 极具科技感的蓝-紫-黄渐变
+            hover_data={"Full_Name": True, "Project_Short": False, "数量": True},
+            title="DELIVERY INTENSITY MATRIX",
             template="plotly_dark"
         )
         
-        fig_radar.update_layout(
+        fig_heatmap.update_layout(
             height=650,
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(10,10,20,0.95)', 
-            xaxis=dict(title="SOURCE (SUPPLIER)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-            yaxis=dict(title="TARGET (ADDRESS)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
-            showlegend=True,
-            updatemenus=[{
-                "type": "buttons",
-                "buttons": [{"label": "▶ ACTIVATE RADAR", "method": "animate", "args": [None]}]
-            }]
+            plot_bgcolor='rgba(10,10,20,0.8)',
+            xaxis=dict(
+                title="TIMELINE", 
+                showgrid=False, 
+                tickfont=dict(color="#00f2ea", family="Monospace")
+            ),
+            yaxis=dict(
+                title="PROJECT SECTOR", 
+                showgrid=True, 
+                gridcolor='rgba(255,255,255,0.1)',
+                tickfont=dict(color="#ff0055", family="Monospace", size=14)
+            ),
+            font=dict(family="Courier New"),
+            coloraxis_colorbar=dict(title="TONS")
         )
-        fig_radar.layout.sliders[0].currentvalue = {"prefix": "DATE: ", "font": {"color": "#00f260"}}
-        
-        st.plotly_chart(fig_radar, use_container_width=True)
+        st.plotly_chart(fig_heatmap, use_container_width=True)
 
 
 def show_data_panel(df, project):
