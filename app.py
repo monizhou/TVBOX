@@ -1153,4 +1153,303 @@ def show_statistics_tab(df):
         with cols[idx]:
             st.markdown(f"""
             <div class="metric-card">
-                <div style="display:flex; ali
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.2rem">{metric[0]}</span>
+                    <span style="font-weight:600">{metric[1]}</span>
+                </div>
+                <div class="card-value">{metric[2]}</div>
+                <div class="card-unit">{metric[3]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">📊 数据分析</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**项目部发货量排名**")
+        project_quantity = filtered_logistics.groupby('项目部')['数量'].sum().sort_values(ascending=False)
+        if not project_quantity.empty:
+            st.dataframe(
+                project_quantity.reset_index().rename(columns={'数量': '发货量(吨)'}),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("暂无项目部排名数据")
+    
+    with col2:
+        st.markdown("**钢厂供货量排名**")
+        factory_quantity = filtered_logistics.groupby('钢厂')['数量'].sum().sort_values(ascending=False)
+        if not factory_quantity.empty:
+            st.dataframe(
+                factory_quantity.reset_index().rename(columns={'数量': '供货量(吨)'}),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("暂无钢厂排名数据")
+    
+    st.markdown("""
+    <div class="stat-card">
+        <div class="stat-title">📋 物流状态分布</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    status_logistics = merge_logistics_with_status(filtered_logistics)
+    status_distribution = status_logistics['到货状态'].value_counts()
+    
+    if not status_distribution.empty:
+        cols = st.columns(2)
+        with cols[0]:
+            st.markdown("**状态分布统计**")
+            status_df = status_distribution.reset_index()
+            status_df.columns = ['到货状态', '数量']
+            st.dataframe(
+                status_df,
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        with cols[1]:
+            st.markdown("**状态占比**")
+            total_status = status_distribution.sum()
+            for status, count in status_distribution.items():
+                percentage = (count / total_status) * 100
+                st.write(f"{status}: {count}单 ({percentage:.1f}%)")
+    else:
+        st.info("暂无状态分布数据")
+
+
+def show_interactive_analysis(df):
+    """交互式数据分析仪表盘（全屏高科技动画版）"""
+    
+    # --- 标题区域 ---
+    st.markdown("""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <h1 style="
+                background: linear-gradient(to right, #00c6ff, #0072ff);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                font-size: 3rem;
+                font-weight: 800;
+                letter-spacing: 2px;
+                text-shadow: 0 0 20px rgba(0, 198, 255, 0.5);
+            ">PROJECT LOGISTICS RACING</h1>
+            <p style="color: #666; font-family: monospace; letter-spacing: 4px;">>>> REAL-TIME MONITORING SYSTEM <<<</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # --- 控制面板（折叠隐藏）---
+    with st.expander("🛠️ 控制面板 / 筛选设置", expanded=False):
+        all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
+        all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            sel_projects = st.multiselect("🏗️ 选择项目部", all_projects, default="全部")
+        with col2:
+            sel_factories = st.multiselect("🏭 选择钢厂", all_factories, default="全部")
+            
+    # --- 数据过滤 ---
+    filtered_df = df.copy()
+    if "全部" not in sel_projects and sel_projects:
+        filtered_df = filtered_df[filtered_df["项目部"].isin(sel_projects)]
+    if "全部" not in sel_factories and sel_factories:
+        filtered_df = filtered_df[filtered_df["钢厂"].isin(sel_factories)]
+        
+    if filtered_df.empty:
+        st.warning("⚠️ 暂无数据，请调整筛选条件")
+        return
+
+    # --- 动画数据预处理 ---
+    # 1. 提取必要字段
+    anim_df = filtered_df[["交货时间", "项目部", "数量"]].copy()
+    anim_df["日期"] = anim_df["交货时间"].dt.date
+    
+    # 2. 透视表：行=日期，列=项目，值=数量
+    pivot_anim = anim_df.pivot_table(index="日期", columns="项目部", values="数量", aggfunc="sum").fillna(0)
+    
+    # 3. 创建连续日期范围并填充（确保动画平滑）
+    if not pivot_anim.empty:
+        full_date_range = pd.date_range(start=pivot_anim.index.min(), end=pivot_anim.index.max(), freq='D').date
+        pivot_anim = pivot_anim.reindex(full_date_range, fill_value=0)
+        
+        # 4. 计算累计发货量
+        pivot_cumsum = pivot_anim.cumsum()
+        
+        # 5. 格式转换：宽表转长表
+        pivot_cumsum.index.name = "日期"
+        race_df = pivot_cumsum.reset_index().melt(id_vars="日期", var_name="项目部", value_name="累计数量")
+        
+        # 6. 格式化
+        race_df["日期Str"] = race_df["日期"].astype(str)
+        race_df = race_df[race_df["累计数量"] > 0] # 只显示有数据的
+        
+        if not race_df.empty:
+            # --- 绘制赛博朋克风格动画 ---
+            fig_race = px.bar(
+                race_df, 
+                x="累计数量", 
+                y="项目部", 
+                color="项目部",
+                animation_frame="日期Str", 
+                animation_group="项目部",
+                orientation='h',
+                text="累计数量",
+                hover_name="项目部",
+                range_x=[0, race_df["累计数量"].max() * 1.15], # 留出右侧空间
+                # 使用霓虹配色方案
+                color_discrete_sequence=px.colors.qualitative.Dark24
+            )
+            
+            # --- 高级样式定制 ---
+            fig_race.update_layout(
+                template="plotly_dark", # 启用暗黑模板
+                height=700,             # 大屏高度
+                margin=dict(l=0, r=40, t=0, b=0),
+                paper_bgcolor='rgba(0,0,0,0)', # 透明背景
+                plot_bgcolor='rgba(0,0,0,0)',  # 透明绘图区
+                xaxis=dict(
+                    showgrid=False, 
+                    zeroline=False,
+                    showticklabels=False, # 隐藏X轴刻度
+                    title=""
+                ),
+                yaxis=dict(
+                    showgrid=False,
+                    title="",
+                    tickfont=dict(size=14, color="#00e676", family="Monospace") # Y轴字体
+                ),
+                showlegend=False,
+                # 动画控制按钮样式
+                updatemenus=[{
+                    "type": "buttons",
+                    "showactive": False,
+                    "x": 0.1, "y": 0, "xanchor": "right", "yanchor": "top",
+                    "pad": {"t": 20, "r": 20},
+                    "buttons": [{
+                        "label": "▶ START RACE",
+                        "method": "animate",
+                        "args": [None, {"frame": {"duration": 150, "redraw": True}, "fromcurrent": True}]
+                    }]
+                }]
+            )
+            
+            # 优化条形图样式
+            fig_race.update_traces(
+                texttemplate='<b style="font-size:16px; color:white;">%{text:,.0f} </b>', 
+                textposition='outside',
+                marker_line_width=0,
+                width=0.7 # 条形宽度
+            )
+            
+            # 增加巨大的背景年份/日期水印
+            fig_race.layout.sliders[0].currentvalue = {
+                "prefix": "", 
+                "font": {"size": 80, "color": "rgba(255,255,255,0.1)", "weight": "bold"}, 
+                "xanchor": "right",
+                "offset": 20
+            }
+            fig_race.layout.sliders[0].pad = {"t": 50}
+            
+            st.plotly_chart(fig_race, use_container_width=True)
+            
+            st.markdown("""
+                <div style="text-align: center; margin-top: -20px; color: #666; font-size: 12px;">
+                    Powered by Data Intelligence Engine v2.0
+                </div>
+            """, unsafe_allow_html=True)
+            
+        else:
+            st.info("📊 数据量不足以生成动画，请尝试选择更多项目或放宽时间范围")
+    else:
+        st.info("📭 暂无有效发货数据")
+
+
+def show_data_panel(df, project):
+    st.title(f"{project} - 发货数据")
+
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("🔄 刷新数据"):
+            with st.spinner("刷新数据中..."):
+                st.cache_data.clear()
+                st.rerun()
+    with col2:
+        if st.button("← 返回首页"):
+            st.session_state.project_selected = False
+            st.rerun()
+            
+    # 加载物流数据用于交互分析
+    if project == "中铁物贸成都分公司":
+        analysis_df = load_logistics_data() # 加载全部
+    else:
+        full_logistics = load_logistics_data()
+        analysis_df = full_logistics[full_logistics["项目部"] == project]
+    
+    # 确保合并状态
+    if not analysis_df.empty:
+        analysis_df = merge_logistics_with_status(analysis_df)
+
+    if project == "中铁物贸成都分公司":
+        # 总部视图
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 发货计划", "🚛 物流明细", "📊 静态统计", "🚀 数据驾驶舱"])
+    else:
+        # 项目部视图
+        tab1, tab2, tab3 = st.tabs(["📋 发货计划", "🚛 物流明细", "🚀 数据驾驶舱"])
+
+    with tab1:
+        show_plan_tab(df, project)
+        
+    with tab2:
+        show_logistics_tab(project)
+        
+    if project == "中铁物贸成都分公司":
+        with tab3:
+            show_statistics_tab(df)
+        with tab4:
+             if not analysis_df.empty:
+                 show_interactive_analysis(analysis_df)
+             else:
+                 st.info("暂无数据可分析")
+    else:
+        with tab3:
+             if not analysis_df.empty:
+                 show_interactive_analysis(analysis_df)
+             else:
+                 st.info("暂无数据可分析")
+
+
+# ==================== 主程序 ====================
+def main():
+    st.set_page_config(
+        layout="wide",
+        page_title="钢筋发货监控系统",
+        page_icon="🏗️",
+        initial_sidebar_state="expanded"
+    )
+    apply_card_styles()
+
+    if 'project_selected' not in st.session_state:
+        st.session_state.project_selected = False
+    if 'selected_project' not in st.session_state:
+        st.session_state.selected_project = "中铁物贸成都分公司"
+
+    handle_url_parameters()
+
+    with st.spinner('加载数据中...'):
+        df = load_data()
+
+    if not st.session_state.project_selected:
+        show_project_selection(df)
+    else:
+        show_data_panel(df, st.session_state.selected_project)
+
+
+if __name__ == "__main__":
+    main()
