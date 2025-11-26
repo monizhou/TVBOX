@@ -9,6 +9,7 @@ import streamlit as st
 import requests
 import hashlib
 import json
+import plotly.express as px  # 引入plotly进行交互式绘图
 
 
 # ==================== 系统配置 ====================
@@ -21,7 +22,8 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
-    # 【修改点】：调整列顺序，将"卸货地址"移动到"联系人"左边
+    
+    # 【修改点】：调整列顺序，"卸货地址" 放在 "联系人" 左边
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "卸货地址", "联系人", "联系方式", "项目部",
@@ -512,6 +514,7 @@ def load_logistics_data():
             # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
 
+            # 【重要】确保返回列的顺序与 CONFIG 中一致
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
 
     except Exception as e:
@@ -907,26 +910,21 @@ def show_logistics_tab(project):
                         options=AppConfig.STATUS_OPTIONS,
                         default="公司统筹中",
                         required=True,
-                        # 去除width设置以自动调整
                     ),
                     "备注": st.column_config.TextColumn(
                         "备注",
                         help="可自由编辑的备注信息",
-                        # 去除width设置以自动调整
                     ),
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        # 去除width设置以自动调整
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
                         format="YYYY-MM-DD HH:mm",
-                        # 去除width设置以自动调整
                     ),
                     "卸货地址": st.column_config.TextColumn(
                         "卸货地址",
-                        # 明确指定为TextColumn以确保左对齐
                     ),
                     "钢厂": st.column_config.TextColumn("钢厂"),
                     "物资名称": st.column_config.TextColumn("物资名称"),
@@ -934,7 +932,6 @@ def show_logistics_tab(project):
                     "联系人": st.column_config.TextColumn("联系人"),
                     "联系方式": st.column_config.TextColumn("联系方式"),
                     "项目部": st.column_config.TextColumn("项目部"),
-                    # 其他列自动配置
                 },
                 key=f"logistics_editor_{project}"
             )
@@ -1218,7 +1215,7 @@ def show_plan_tab(df, project):
 
 
 def show_statistics_tab(df):
-    """数据统计面板"""
+    """静态数据统计面板"""
     st.header("📊 数据统计分析")
     
     col1, col2, col3 = st.columns([2, 2, 1])
@@ -1396,6 +1393,213 @@ def show_statistics_tab(df):
         st.info("暂无状态分布数据")
 
 
+def show_interactive_analysis(df):
+    """交互式数据分析仪表盘（含动态竞速动画）"""
+    
+    # --- 布局：顶部标题与左右分栏 ---
+    st.markdown("### 🕵️‍♂️ 智能数据透视 & 动态监控")
+    
+    # 将顶部区域分为左右两部分：左边是筛选和指标，右边是动画
+    top_col1, top_col2 = st.columns([1, 1.5], gap="large")
+    
+    # ================= 左侧：筛选与核心指标 =================
+    with top_col1:
+        st.markdown("#### 🌪️ 数据筛选 & 概览")
+        
+        # 1. 筛选器
+        with st.container(border=True):
+            all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
+            all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
+            
+            sel_projects = st.multiselect("🏗️ 选择项目部", all_projects, default="全部")
+            sel_factories = st.multiselect("🏭 选择钢厂", all_factories, default="全部")
+            
+        # --- 数据过滤逻辑 ---
+        filtered_df = df.copy()
+        if "全部" not in sel_projects and sel_projects:
+            filtered_df = filtered_df[filtered_df["项目部"].isin(sel_projects)]
+        if "全部" not in sel_factories and sel_factories:
+            filtered_df = filtered_df[filtered_df["钢厂"].isin(sel_factories)]
+            
+        if filtered_df.empty:
+            st.warning("⚠️ 当前筛选条件下无数据")
+            return
+
+        # 2. 关键指标概览 (Metric Cards)
+        total_qty = filtered_df["数量"].sum()
+        total_count = len(filtered_df)
+        
+        # 计算最大供应商
+        if not filtered_df.empty:
+            top_supplier_s = filtered_df.groupby("钢厂")["数量"].sum()
+            top_supplier = top_supplier_s.idxmax()
+            top_supplier_val = top_supplier_s.max()
+        else:
+            top_supplier = "无"
+            top_supplier_val = 0
+
+        # 使用 CSS Grid 布局指标卡
+        st.markdown(f"""
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+            <div style="background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #3498db;">
+                <div style="font-size: 12px; color: #666;">📦 筛选总量</div>
+                <div style="font-size: 20px; font-weight: bold; color: #2c3e50;">{total_qty:,.0f} <span style="font-size:12px">吨</span></div>
+            </div>
+            <div style="background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #2ecc71;">
+                <div style="font-size: 12px; color: #666;">📄 订单单数</div>
+                <div style="font-size: 20px; font-weight: bold; color: #2c3e50;">{total_count} <span style="font-size:12px">单</span></div>
+            </div>
+            <div style="grid-column: span 2; background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #e74c3c;">
+                <div style="font-size: 12px; color: #666;">🏆 最大供应商</div>
+                <div style="font-size: 18px; font-weight: bold; color: #2c3e50;">
+                    {top_supplier} 
+                    <span style="font-size:12px; color:#e74c3c; font-weight:normal;">({top_supplier_val:,.0f}吨)</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ================= 右侧：动态竞速动画 =================
+    with top_col2:
+        st.markdown("#### 🏁 项目发货量动态竞速 (累计)")
+        
+        # --- 动画数据预处理 ---
+        # 1. 提取日期、项目、数量
+        anim_df = filtered_df[["交货时间", "项目部", "数量"]].copy()
+        anim_df["日期"] = anim_df["交货时间"].dt.date
+        
+        if not anim_df.empty:
+            # 2. 透视表：行=日期，列=项目，值=数量
+            pivot_anim = anim_df.pivot_table(index="日期", columns="项目部", values="数量", aggfunc="sum").fillna(0)
+            
+            # 3. 重采样填充日期（确保动画连续），并计算累计值
+            # 创建完整的日期范围
+            full_date_range = pd.date_range(start=pivot_anim.index.min(), end=pivot_anim.index.max(), freq='D').date
+            pivot_anim = pivot_anim.reindex(full_date_range, fill_value=0)
+            
+            # 计算累计和 (Cumsum)
+            pivot_cumsum = pivot_anim.cumsum()
+            
+            # 4. 逆透视回长格式，以便 Plotly 使用
+            race_df = pivot_cumsum.reset_index().melt(id_vars="index", var_name="项目部", value_name="累计数量")
+            race_df.rename(columns={"index": "日期"}, inplace=True)
+            
+            # 格式化日期为字符串，否则动画条可能会出错
+            race_df["日期Str"] = race_df["日期"].astype(str)
+            
+            # 只取累计数量大于0的数据，减少计算量
+            race_df = race_df[race_df["累计数量"] > 0]
+            
+            if not race_df.empty:
+                # 5. 绘制 Bar Chart Race
+                fig_race = px.bar(
+                    race_df, 
+                    x="累计数量", 
+                    y="项目部", 
+                    color="项目部",
+                    animation_frame="日期Str", 
+                    animation_group="项目部",
+                    orientation='h',
+                    text="累计数量",
+                    hover_name="项目部",
+                    range_x=[0, race_df["累计数量"].max() * 1.1] # 固定X轴范围防止抖动
+                )
+                
+                fig_race.update_layout(
+                    xaxis_title="累计发货量 (吨)",
+                    yaxis_title="",
+                    showlegend=False,
+                    height=350, # 调整高度适应布局
+                    margin=dict(l=0, r=0, t=0, b=0),
+                    plot_bgcolor='rgba(0,0,0,0)', # 透明背景
+                    updatemenus=[{
+                        "type": "buttons",
+                        "buttons": [{
+                            "label": "▶️ 播放",
+                            "method": "animate",
+                            "args": [None, {"frame": {"duration": 100, "redraw": True}, "fromcurrent": True}]
+                        }]
+                    }]
+                )
+                # 隐藏每一帧的各个标签，只保留数值
+                fig_race.update_traces(texttemplate='%{text:.0f}', textposition='outside')
+                
+                st.plotly_chart(fig_race, use_container_width=True)
+            else:
+                st.info("数据量不足以生成动画")
+        else:
+            st.info("暂无数据")
+
+    st.markdown("---") # 分割线
+
+    # ================= 底部：详细图表 Tabs =================
+    tab1, tab2, tab3 = st.tabs(["🧬 结构透视 (旭日图)", "🔥 供需热力 (热力图)", "📈 趋势分析 (时序图)"])
+
+    with tab1:
+        # 旭日图
+        fig_sun = px.sunburst(
+            filtered_df,
+            path=['项目部', '物资名称', '规格型号'],
+            values='数量',
+            color='数量', 
+            color_continuous_scale='Blues',
+            height=600
+        )
+        fig_sun.update_traces(textinfo="label+percent entry")
+        st.plotly_chart(fig_sun, use_container_width=True)
+
+    with tab2:
+        # 热力图
+        pivot_data = filtered_df.pivot_table(
+            index='钢厂', 
+            columns='项目部', 
+            values='数量', 
+            aggfunc='sum',
+            fill_value=0
+        )
+        
+        if not pivot_data.empty:
+            fig_heat = px.imshow(
+                pivot_data,
+                labels=dict(x="项目部", y="钢厂", color="发货量(吨)"),
+                x=pivot_data.columns,
+                y=pivot_data.index,
+                text_auto=".0f",
+                aspect="auto",
+                color_continuous_scale="Viridis"
+            )
+            fig_heat.update_layout(height=500)
+            st.plotly_chart(fig_heat, use_container_width=True)
+        else:
+            st.info("数据不足以生成热力图")
+
+    with tab3:
+        # 时序图
+        if '交货时间' in filtered_df.columns:
+            daily_trend = filtered_df.groupby(filtered_df['交货时间'].dt.date)['数量'].sum().reset_index()
+            daily_trend.columns = ['日期', '数量']
+            
+            if not daily_trend.empty:
+                fig_line = px.area(
+                    daily_trend, 
+                    x='日期', 
+                    y='数量',
+                    markers=True,
+                    line_shape='spline'
+                )
+                fig_line.update_layout(
+                    hovermode="x unified",
+                    height=450,
+                    xaxis=dict(
+                        rangeslider=dict(visible=True),
+                        type="date"
+                    )
+                )
+                st.plotly_chart(fig_line, use_container_width=True)
+            else:
+                st.info("暂无时序数据")
+
+
 def show_data_panel(df, project):
     st.title(f"{project} - 发货数据")
 
@@ -1409,11 +1613,24 @@ def show_data_panel(df, project):
         if st.button("← 返回首页"):
             st.session_state.project_selected = False
             st.rerun()
+            
+    # 加载物流数据用于交互分析
+    if project == "中铁物贸成都分公司":
+        analysis_df = load_logistics_data() # 加载全部
+    else:
+        full_logistics = load_logistics_data()
+        analysis_df = full_logistics[full_logistics["项目部"] == project]
+    
+    # 确保合并状态
+    if not analysis_df.empty:
+        analysis_df = merge_logistics_with_status(analysis_df)
 
     if project == "中铁物贸成都分公司":
-        tab1, tab2, tab3 = st.tabs(["📋 发货计划", "🚛 物流明细", "📊 数据统计"])
+        # 总部视图
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 发货计划", "🚛 物流明细", "📊 静态统计", "🔍 交互分析"])
     else:
-        tab1, tab2 = st.tabs(["📋 发货计划", "🚛 物流明细"])
+        # 项目部视图
+        tab1, tab2, tab3 = st.tabs(["📋 发货计划", "🚛 物流明细", "🔍 交互分析"])
 
     with tab1:
         show_plan_tab(df, project)
@@ -1424,6 +1641,17 @@ def show_data_panel(df, project):
     if project == "中铁物贸成都分公司":
         with tab3:
             show_statistics_tab(df)
+        with tab4:
+             if not analysis_df.empty:
+                 show_interactive_analysis(analysis_df)
+             else:
+                 st.info("暂无数据可分析")
+    else:
+        with tab3:
+             if not analysis_df.empty:
+                 show_interactive_analysis(analysis_df)
+             else:
+                 st.info("暂无数据可分析")
 
 
 # ==================== 主程序 ====================
