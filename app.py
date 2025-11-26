@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 3D 飞线驾驶舱终极版"""
+"""钢筋发货监控系统（中铁总部视图版）- 全中文深蓝地图版"""
 import os
 import re
 import time
@@ -50,7 +50,6 @@ class AppConfig:
         "hxmhkckjstg": "华西萌海-科创农业生态谷",
         "hxxlxx": "华西兴隆学校",
         "hxyhkckjstg": "华西颐海-科创农业生态谷",
-        # ... 其他映射保持兼容
     }
 
     # 【地址库 1】项目坐标 (城市级别模糊匹配)
@@ -146,7 +145,6 @@ def get_coordinates(name, db, default_jitter=True):
     return base_coord
 
 def apply_card_styles():
-    # 修复了CSS中f-string花括号冲突的问题
     st.markdown(f"""
     <style>
         .remark-card {{
@@ -286,7 +284,6 @@ def load_data():
                     df.rename(columns={alt_col: std_col}, inplace=True)
                     break
         
-        # 基础清洗
         df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({"": "未指定", "nan": "未指定"})
         df[AppConfig.PROJECT_COLUMN] = df.iloc[:, 17].astype(str).str.strip().replace({"": "未指定", "nan": "未指定"})
         df["下单时间"] = pd.to_datetime(df["下单时间"], errors='coerce')
@@ -322,7 +319,6 @@ def load_logistics_data():
             if col not in df.columns:
                 df[col] = "" if col != "数量" else 0
 
-        # 清洗
         for col in ["物资名称", "钢厂", "项目部"]:
             df[col] = df[col].astype(str).str.strip().replace({"nan": "", "None": ""})
         
@@ -421,7 +417,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
     return cnt, 0
 
 
-# ==================== 【终极】3D 飞线驾驶舱 ====================
+# ==================== 【全中文】3D 飞线驾驶舱 ====================
 def show_cockpit_tab():
     st.markdown('<h3 class="map-container-title">🛸 G.L.M.S - 3D 飞线战术地图</h3>', unsafe_allow_html=True)
     
@@ -430,36 +426,22 @@ def show_cockpit_tab():
         st.info("暂无数据")
         return
 
-    # 1. 数据准备：按 [项目, 钢厂] 聚合
-    # 这决定了飞线的起点（钢厂）和终点（项目）
+    # 数据处理：匹配坐标
     grouped = logistics_df.groupby(["项目部", "钢厂"])["数量"].sum().reset_index()
+    grouped["target_coord"] = grouped["项目部"].apply(lambda x: get_coordinates(x, AppConfig.CITY_COORDINATES, True))
+    grouped["source_coord"] = grouped["钢厂"].apply(lambda x: get_coordinates(x, AppConfig.FACTORY_COORDINATES, True))
     
-    # 2. 坐标映射
-    # 终点 (项目)
-    grouped["target_coord"] = grouped["项目部"].apply(
-        lambda x: get_coordinates(x, AppConfig.CITY_COORDINATES, True)
-    )
-    # 起点 (钢厂)
-    grouped["source_coord"] = grouped["钢厂"].apply(
-        lambda x: get_coordinates(x, AppConfig.FACTORY_COORDINATES, True)
-    )
-    
-    # 过滤掉无法定位的数据
     valid_data = grouped.dropna(subset=["target_coord", "source_coord"]).copy()
-    
     if valid_data.empty:
-        st.warning("⚠️ 无法匹配项目或钢厂坐标，请检查名称是否包含关键词 (如: 宜宾, 成都, 达钢)")
+        st.warning("⚠️ 无法匹配坐标，请检查项目/钢厂名称是否包含关键词 (如: 宜宾, 成都)")
         return
         
-    # 拆分坐标列以便Pydeck使用
     valid_data["t_lon"] = valid_data["target_coord"].apply(lambda x: x[0])
     valid_data["t_lat"] = valid_data["target_coord"].apply(lambda x: x[1])
     valid_data["s_lon"] = valid_data["source_coord"].apply(lambda x: x[0])
     valid_data["s_lat"] = valid_data["source_coord"].apply(lambda x: x[1])
     
-    # 3. 颜色分级 (0-255 RGB + Alpha)
-    # 量小: 冰蓝 [0, 255, 255]
-    # 量大: 橙红 [255, 140, 0]
+    # 颜色策略
     def get_color(val):
         if val > 100: return [255, 69, 0, 180] # Red-Orange
         if val > 50: return [255, 215, 0, 160] # Gold
@@ -467,43 +449,48 @@ def show_cockpit_tab():
 
     valid_data["color"] = valid_data["数量"].apply(get_color)
 
-    # 4. 交互控制器
+    # 交互控制
     col_sel, col_info = st.columns([1, 2])
     with col_sel:
         selected_proj = st.selectbox("🔭 聚焦阵地", ["全部显示"] + sorted(list(valid_data["项目部"].unique())))
 
-    view_state = pdk.ViewState(latitude=30.8, longitude=105.0, zoom=6.5, pitch=60) # 默认视角：俯视四川
-    
+    view_state = pdk.ViewState(latitude=30.8, longitude=105.0, zoom=6.5, pitch=60)
     if selected_proj != "全部显示":
         target = valid_data[valid_data["项目部"] == selected_proj].iloc[0]
-        view_state = pdk.ViewState(
-            latitude=target["t_lat"], 
-            longitude=target["t_lon"], 
-            zoom=9, 
-            pitch=60, 
-            bearing=30
-        )
+        view_state = pdk.ViewState(latitude=target["t_lat"], longitude=target["t_lon"], zoom=9, pitch=60, bearing=30)
 
-    # 5. 构建图层
+    # ================= 3D 图层构建 =================
     layers = []
+    
+    # 0. 底图层：强制使用【智图-深蓝夜色】中文瓦片
+    # 这是一个公开的深色中文地图服务，不需要Key，是“全中文”的关键
+    base_map_layer = pdk.Layer(
+        "TileLayer",
+        data=None,
+        # GeoQ 智图 - 深蓝夜色 (全中文)
+        get_tile_data="https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}",
+        min_zoom=0,
+        max_zoom=16,
+        tileSize=256,
+        pickable=False,
+    )
+    layers.append(base_map_layer)
 
-    # Layer 1: 飞线 (ArcLayer) - 3D 弧线
+    # 1. 飞线层
     arc_layer = pdk.Layer(
         "ArcLayer",
         data=valid_data,
         get_source_position=["s_lon", "s_lat"],
         get_target_position=["t_lon", "t_lat"],
-        get_source_color=[0, 255, 255, 80],  # 起点淡蓝
-        get_target_color="color",            # 终点随量变色
+        get_source_color=[0, 255, 255, 80],
+        get_target_color="color",
         get_width=3,
         get_tilt=15,
         pickable=True,
-        auto_highlight=True,
     )
     layers.append(arc_layer)
 
-    # Layer 2: 晶体光柱 (ColumnLayer) - 变细变透
-    # 此时我们需要按项目聚合总量，避免柱子重叠
+    # 2. 柱状图层
     proj_agg = valid_data.groupby(["项目部", "t_lon", "t_lat"])["数量"].sum().reset_index()
     proj_agg["color"] = proj_agg["数量"].apply(get_color)
     
@@ -512,41 +499,41 @@ def show_cockpit_tab():
         data=proj_agg,
         get_position=["t_lon", "t_lat"],
         get_elevation="数量",
-        elevation_scale=100,      # 高度放大系数
-        radius=1000,              # 变细：半径1000米
-        get_fill_color="color",   # 引用颜色列
+        elevation_scale=100,
+        radius=1000,
+        get_fill_color="color",
         pickable=True,
         extruded=True,
         auto_highlight=True,
     )
     layers.append(column_layer)
 
-    # Layer 3: 中文标注 (TextLayer) - 解决底图无中文问题
+    # 3. 文本层 (中文标注，弥补底图字体过小的问题)
     text_layer = pdk.Layer(
         "TextLayer",
         data=proj_agg,
         get_position=["t_lon", "t_lat"],
         get_text="项目部",
         get_color=[255, 255, 255],
-        get_size=14,
+        get_size=13,
         get_alignment_baseline="'bottom'",
         get_text_anchor="'middle'",
-        get_pixel_offset=[0, -15], # 向上偏移，浮在柱子上方
+        get_pixel_offset=[0, -15],
     )
     layers.append(text_layer)
 
-    # 6. 渲染
     tooltip = {
         "html": "<b>{项目部}</b><br/>从 {钢厂} 发货<br/>📦 数量: {数量} 吨",
         "style": {"backgroundColor": "#111", "color": "#fff", "border": "1px solid #00f2ea"}
     }
     
-    # 使用 Dark Matter 底图，配合飞线效果最佳
+    # 注意：设置 map_provider=None 禁用默认的 Mapbox/Google，只显示我们的中文 TileLayer
     st.pydeck_chart(pdk.Deck(
-        map_style="mapbox://styles/mapbox/dark-v10", # 或 pdk.map_styles.DARK
+        map_provider=None, 
         initial_view_state=view_state,
         layers=layers,
-        tooltip=tooltip
+        tooltip=tooltip,
+        parameters={"blendFunc": [770, 771]} # 优化透明度混合
     ))
 
     if selected_proj != "全部显示":
@@ -566,7 +553,6 @@ def show_plan_tab(df, project):
     res = filtered[mask]
     
     if not res.empty:
-        # 显示统计卡片
         total = int(res["需求量"].sum())
         shipped = int(res["已发量"].sum())
         cols = st.columns(3)
@@ -617,7 +603,6 @@ def show_project_selection(df):
     st.markdown("<h1 style='text-align: center;'>钢筋发货监控系统</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>中铁物贸成都分公司</p>", unsafe_allow_html=True)
     
-    # 模拟输入密码
     log_df = load_logistics_data()
     projs = sorted([p for p in log_df["项目部"].unique() if p]) if not log_df.empty else []
     
@@ -638,7 +623,6 @@ def main():
     
     if 'project_selected' not in st.session_state: st.session_state.project_selected = False
     
-    # Handle URL Params
     qp = st.query_params
     if 'project' in qp:
         pkey = qp['project'] if not isinstance(qp['project'], list) else qp['project'][0]
