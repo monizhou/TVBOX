@@ -239,6 +239,7 @@ def load_data():
 
     data_path = find_data_file()
     if not data_path:
+        st.error("❌ 未找到发货计划数据文件")
         return pd.DataFrame()
 
     try:
@@ -675,7 +676,6 @@ def show_interactive_cockpit(df):
         all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
         all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
         
-        # 预处理地址：优先用卸货地址，无则用项目部
         if "卸货地址" in df.columns:
             df["显示地址"] = df["卸货地址"].replace("", None).fillna(df["项目部"])
         else:
@@ -702,7 +702,6 @@ def show_interactive_cockpit(df):
     anim_df = filtered[["交货时间", "钢厂", "显示地址", "数量", "物资名称"]].copy()
     anim_df["日期"] = anim_df["交货时间"].dt.date
     
-    # 确保时间连续性（为了动画平滑）
     min_date = anim_df["日期"].min()
     max_date = anim_df["日期"].max()
     
@@ -710,24 +709,21 @@ def show_interactive_cockpit(df):
         st.info("日期数据无效")
         return
 
-    # --- 标签页切换两种方案 ---
     tab1, tab2 = st.tabs(["🌌 方案一：时空流光瀑布", "📡 方案二：战术供需雷达"])
 
     # ================= 方案一：时空流光瀑布 (Waterfall) =================
     with tab1:
         st.caption(">>> 视图说明：展示随时间推移，各收货点的物资到达情况。横轴为时间，纵轴为地点。")
-        
-        # 简单处理：直接用散点展示所有记录，X=时间
         fig_waterfall = px.scatter(
             anim_df,
             x="交货时间",
             y="显示地址",
             size="数量",
-            color="钢厂", # 不同钢厂不同颜色
+            color="钢厂", 
             hover_name="物资名称",
             size_max=40,
             title="LOGISTICS TIME-SPACE FLOW",
-            template="plotly_dark" # 局部暗黑风格
+            template="plotly_dark"
         )
         
         fig_waterfall.update_layout(
@@ -744,12 +740,8 @@ def show_interactive_cockpit(df):
     with tab2:
         st.caption(">>> 视图说明：动态监控供需关系。点击播放，查看每日发货脉冲。")
         
-        # 聚合数据
         grouped = anim_df.groupby(["日期", "钢厂", "显示地址", "物资名称"])["数量"].sum().reset_index()
         grouped["日期Str"] = grouped["日期"].astype(str)
-        
-        # 填充空日期以保持动画帧连续（可选，为简化直接用现有数据帧）
-        # 排序
         grouped = grouped.sort_values("日期")
         
         fig_radar = px.scatter(
@@ -770,7 +762,7 @@ def show_interactive_cockpit(df):
         fig_radar.update_layout(
             height=650,
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(10,10,20,0.95)', # 深色雷达背景
+            plot_bgcolor='rgba(10,10,20,0.95)', 
             xaxis=dict(title="SOURCE (SUPPLIER)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
             yaxis=dict(title="TARGET (ADDRESS)", showgrid=True, gridcolor='rgba(255,255,255,0.1)'),
             showlegend=True,
@@ -797,15 +789,12 @@ def show_data_panel(df, project):
             st.session_state.project_selected = False
             st.rerun()
 
-    # 数据准备
     if project == "中铁物贸成都分公司":
         analysis_df = load_logistics_data()
-        # 增加新标签页 "智能驾驶舱"
         tabs = ["📋 发货计划", "🚛 物流明细", "📊 数据统计", "🚀 智能驾驶舱"]
     else:
         full = load_logistics_data()
         analysis_df = full[full["项目部"] == project]
-        # 增加新标签页 "智能驾驶舱"
         tabs = ["📋 发货计划", "🚛 物流明细", "🚀 智能驾驶舱"]
     
     if not analysis_df.empty:
@@ -823,11 +812,9 @@ def show_data_panel(df, project):
         with selected_tabs[2]:
             show_statistics_tab(df)
         with selected_tabs[3]:
-            # 新增模块调用
             show_interactive_cockpit(analysis_df)
     else:
         with selected_tabs[2]:
-            # 新增模块调用
             show_interactive_cockpit(analysis_df)
 
 
@@ -841,13 +828,37 @@ def show_plan_tab(df, project):
     res = filtered[mask]
     
     if not res.empty:
-        cols = {
+        # 【修复点】仅筛选存在的列
+        target_cols = {
             "标段名称": "工程标段", "物资名称": "材料名称", "规格型号": "规格型号",
             "需求量": "需求(吨)", "已发量": "已发(吨)", "剩余量": "待发(吨)",
             "超期天数": "超期天数", "下单时间": "下单", "计划进场时间": "计划进场"
         }
-        disp = res[list(cols.keys())].rename(columns=cols)
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        # 动态获取可用列
+        available = {k: v for k, v in target_cols.items() if k in res.columns}
+        
+        disp = res[list(available.keys())].rename(columns=available)
+        
+        # 动态格式化
+        formats = {}
+        if "需求(吨)" in disp.columns: formats["需求(吨)"] = "{:,}"
+        if "已发(吨)" in disp.columns: formats["已发(吨)"] = "{:,}"
+        if "待发(吨)" in disp.columns: formats["待发(吨)"] = "{:,}"
+        
+        # 日期格式化
+        if "下单" in disp.columns:
+            disp["下单"] = disp["下单"].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '')
+        if "计划进场" in disp.columns:
+            disp["计划进场"] = disp["计划进场"].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else '')
+
+        st.dataframe(
+            disp.style.format(formats).apply(
+                lambda row: ['background-color: #ffdddd' if '超期天数' in row and row.get('超期天数', 0) > 0 else '' for _ in row],
+                axis=1
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("无数据")
 
