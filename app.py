@@ -267,13 +267,13 @@ def apply_card_styles():
             align-items: center;
             gap: 0.5rem;
         }}
-        /* 地图容器样式 */
-        .map-container-title {
+        /* 地图容器样式 - 已修复花括号问题 */
+        .map-container-title {{
             color: #00f2ea;
             font-family: 'Courier New', monospace;
             text-shadow: 0 0 10px #00f2ea;
             margin-bottom: 10px;
-        }
+        }}
     </style>
     """, unsafe_allow_html=True)
 
