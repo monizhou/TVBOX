@@ -9,8 +9,8 @@ import streamlit as st
 import requests
 import hashlib
 import json
-import plotly.express as px  # 引入plotly进行交互式绘图
-
+import plotly.express as px
+import plotly.graph_objects as go
 
 # ==================== 系统配置 ====================
 class AppConfig:
@@ -38,10 +38,8 @@ class AppConfig:
         '下单时间': ['创建时间', '日期', '录入时间']
     }
     WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/dcf16af3-78d2-433f-9c3d-b4cd108c7b60"
-    LOGISTICS_DATE_RANGE_DAYS = 5
-
+    
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
-    # 扩展状态选项
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
 
@@ -74,35 +72,16 @@ class AppConfig:
         "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
     }
 
+    # 高科技感卡片样式
     CARD_STYLES = {
-        "hover_shadow": "0 8px 16px rgba(0,0,0,0.2)",
+        "hover_shadow": "0 0 20px rgba(0, 255, 255, 0.3)",
         "glass_effect": """
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        """,
-        "number_animation": """
-            @keyframes countup {
-                from { opacity: 0; transform: translateY(10px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-        """,
-        "floating_animation": """
-            @keyframes floating {
-                0% { transform: translateY(0px); }
-                50% { transform: translateY(-8px); }
-                100% { transform: translateY(0px); }
-            }
-        """,
-        "pulse_animation": """
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.03); }
-                100% { transform: scale(1); }
-            }
+            background: rgba(16, 24, 39, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         """
     }
 
@@ -128,29 +107,35 @@ def find_data_file():
 def apply_card_styles():
     st.markdown(f"""
     <style>
-        /* 新增备注卡片样式 */
+        /* 全局深色背景微调 */
+        .stApp {{
+            background-color: #0e1117;
+        }}
+        
+        /* 备注卡片样式 */
         .remark-card {{
-            background: rgba(245, 245, 247, 0.9);
+            background: rgba(30, 30, 30, 0.8);
             border-radius: 10px;
             padding: 1rem;
             margin: 1.5rem 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             border-left: 4px solid;
+            color: #e0e0e0;
         }}
-        .plan-remark {{ border-color: #2196F3; }}
-        .logistics-remark {{ border-color: #4CAF50; }}
+        .plan-remark {{ border-color: #00bcd4; }}
+        .logistics-remark {{ border-color: #00e676; }}
         .remark-content {{
             font-size: 1rem;
-            color: #666;
+            color: #b0b0b0;
             text-align: center;
             padding: 1rem;
         }}
 
-        /* 苹果风格标签页 */
+        /* 标签页样式优化 */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
             padding: 8px 0;
-            background: #f5f5f7;
+            background: rgba(255,255,255,0.05);
             border-radius: 12px;
             margin: 1rem 0;
         }}
@@ -162,57 +147,22 @@ def apply_card_styles():
             color: #86868b !important;
             font-size: 14px;
             font-weight: 500;
-            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             border-radius: 8px;
-            margin: 0 4px !important;
-        }}
-
-        .stTabs [data-baseweb="tab"]:hover {{
-            background: rgba(0, 0, 0, 0.04) !important;
-            color: #1d1d1f !important;
-            transform: scale(1.02);
         }}
 
         .stTabs [aria-selected="true"] {{
-            background: #ffffff !important;
-            color: #1d1d1f !important;
+            background: rgba(255,255,255,0.1) !important;
+            color: #ffffff !important;
             font-weight: 600;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08),
-                        inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 0 10px rgba(0,255,255,0.1);
         }}
 
-        .stTabs [aria-selected="true"]:hover {{
-            transform: none;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1),
-                        inset 0 0 0 1px rgba(0, 0, 0, 0.06);
-        }}
-
-        /* 适配移动端 */
-        @media (max-width: 768px) {{
-            .stTabs [data-baseweb="tab-list"] {{
-                flex-wrap: wrap;
-            }}
-            .stTabs [data-baseweb="tab"] {{
-                flex: 1 1 45%;
-                margin: 4px !important;
-                text-align: center;
-            }}
-        }}
-        {AppConfig.CARD_STYLES['number_animation']}
-        {AppConfig.CARD_STYLES['floating_animation']}
-        {AppConfig.CARD_STYLES['pulse_animation']}
-
-        @keyframes fadeIn {{
-            from {{ opacity: 0; transform: translateY(20px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-
+        /* 指标卡容器 */
         .metric-container {{ 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
             gap: 1rem; 
             margin: 1rem 0; 
-            animation: fadeIn 0.6s ease-out;
         }}
         .metric-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
@@ -222,112 +172,27 @@ def apply_card_styles():
         .metric-card:hover {{
             transform: translateY(-5px);
             box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
+            border-color: rgba(0, 255, 255, 0.4);
         }}
         .card-value {{
             font-size: 2rem;
             font-weight: 700;
-            background: linear-gradient(45deg, #2c3e50, #3498db);
+            background: linear-gradient(45deg, #00bcd4, #00e676);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            animation: countup 0.8s ease-out;
             margin: 0.5rem 0;
         }}
         .card-unit {{
             font-size: 0.9rem;
-            color: #666;
-        }}
-        .overdue-row {{ background-color: #ffdddd !important; }}
-        .status-arrived {{ background-color: #ddffdd !important; }}
-        .status-not-arrived {{ background-color: #ffdddd !important; }}
-        .status-empty {{ background-color: transparent !important; }}
-
-        .home-card {{
-            {AppConfig.CARD_STYLES['glass_effect']}
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            transition: all 0.3s ease;
-            animation: floating 4s ease-in-out infinite;
-        }}
-        .home-card:hover {{
-            animation: pulse 1.5s infinite;
-            box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
-        }}
-        .home-card-title {{
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #2c3e50;
-            border-bottom: 2px solid rgba(44, 62, 80, 0.1);
-            padding-bottom: 0.5rem;
-        }}
-        .home-card-content {{
-            font-size: 1rem;
-            line-height: 1.6;
-            color: #555;
-        }}
-        .home-card-icon {{
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: #3498db;
-        }}
-        .project-selector {{
-            margin-top: 2rem;
-            margin-bottom: 2rem;
-        }}
-        .welcome-header {{
-            font-size: 3.5rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            background: linear-gradient(45deg, #2c3e50, #3498db);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-align: center;
-        }}
-        .welcome-subheader {{
-            font-size: 1.5rem;
-            text-align: center;
-            color: #666;
-            margin-bottom: 2rem;
-            position: relative;
-            padding-bottom: 0.5rem;
-        }}
-        .dataframe {{
-            animation: fadeIn 0.6s ease-out;
+            color: #888;
         }}
         
-        /* 批量更新样式 */
-        .batch-update-card {{
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border-left: 4px solid #3498db;
+        /* 表格样式 */
+        div[data-testid="stDataEditor"] table td {{
+            font-size: 13px !important;
         }}
-        .batch-update-title {{
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #2c3e50;
-        }}
-        
-        /* 统计图表样式 */
-        .stat-card {{
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border-left: 4px solid #FF6B6B;
-        }}
-        .stat-title {{
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            color: #2c3e50;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        div[data-testid="stDataEditor"] table th {{
+            font-size: 14px !important;
         }}
     </style>
     """, unsafe_allow_html=True)
@@ -436,7 +301,6 @@ def load_data():
                 df["计划进场时间"] = pd.to_datetime(df["计划进场时间"], errors='coerce').dt.tz_localize(None)
             
             try:
-                # 获取第16列数据 (索引从0开始，所以是15)
                 df["超期天数"] = safe_convert_to_numeric(df.iloc[:, 15]).astype(int)
             except Exception:
                 df["超期天数"] = 0
@@ -455,12 +319,10 @@ def load_logistics_data():
 
     try:
         with st.spinner("正在加载物流数据..."):
-            # 尝试读取物流明细表
             try:
                 df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
                 
-                # 【新增逻辑】强制从 G列 (索引6) 读取数据作为 "卸货地址"
-                # 无论Excel表头是什么，G列被视为卸货地址
+                # 强制从 G列 (索引6) 读取数据作为 "卸货地址"
                 if df.shape[1] > 6:
                     df["卸货地址"] = df.iloc[:, 6].astype(str).replace({"nan": "", "None": ""})
                 else:
@@ -474,12 +336,10 @@ def load_logistics_data():
                 st.warning("物流明细表为空")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
-            # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
                     df[col] = "" if col != "数量" else 0
 
-            # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
                 "": "未指定物资", "nan": "未指定物资", "None": "未指定物资", None: "未指定物资"})
             df["钢厂"] = df["钢厂"].astype(str).str.strip().replace({
@@ -487,13 +347,10 @@ def load_logistics_data():
             df["项目部"] = df["项目部"].astype(str).str.strip().replace({
                 "未指定项目部": "", "nan": "", "None": "", None: ""})
 
-            # 过滤掉项目部为空的数据
             df = df[df["项目部"] != ""]
 
-            # 安全转换数值列
             def safe_convert_numeric(series):
                 if series.dtype == 'object':
-                    # 处理字符串中的通配符和非数字字符
                     cleaned = series.astype(str).str.replace(r'[^\d.-]', '', regex=True)
                     cleaned = cleaned.replace({'': '0', 'nan': '0', 'None': '0', ' ': '0'})
                     return pd.to_numeric(cleaned, errors='coerce').fillna(0)
@@ -501,31 +358,22 @@ def load_logistics_data():
                     return pd.to_numeric(series, errors='coerce').fillna(0)
 
             df["数量"] = safe_convert_numeric(df["数量"])
-
-            # 处理日期列
             df["交货时间"] = pd.to_datetime(df["交货时间"], errors="coerce")
-
-            # 处理文本列
             df["联系方式"] = df["联系方式"].astype(str)
-            # 再次确保卸货地址列存在并格式化
             if "卸货地址" in df.columns:
                 df["卸货地址"] = df["卸货地址"].astype(str).replace({"nan": "", "None": ""})
 
-            # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
 
-            # 【重要】确保返回列的顺序与 CONFIG 中一致
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
 
     except Exception as e:
         st.error(f"物流数据加载失败: {str(e)}")
-        # 返回一个空的DataFrame，包含必要的列
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
 
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
-    """加载物流状态，只包含到货状态"""
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
         try:
             with st.spinner("加载物流状态..."):
@@ -554,12 +402,10 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
-    """合并物流数据和状态数据，添加3天自动到货逻辑，默认状态为钢厂已接单"""
     if logistics_df.empty:
         return logistics_df
 
     status_df = load_logistics_status()
-    
     current_date = datetime.now().date()
     three_days_ago = current_date - timedelta(days=3)
     
@@ -609,7 +455,6 @@ def merge_logistics_with_status(logistics_df):
 
 
 def update_logistics_status(record_id, new_status, original_row=None):
-    """更新物流状态（带错误处理）"""
     try:
         status_df = load_logistics_status()
 
@@ -656,10 +501,8 @@ def update_logistics_status(record_id, new_status, original_row=None):
 
 
 def batch_update_logistics_status(record_ids, new_status, original_rows=None):
-    """批量更新物流状态"""
     try:
         status_df = load_logistics_status()
-        
         if new_status is None:
             new_status = "公司统筹中"
         new_status = str(new_status).strip()
@@ -670,7 +513,6 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         for i, record_id in enumerate(record_ids):
             try:
                 original_row = original_rows[i] if original_rows and i < len(original_rows) else None
-                
                 send_notification = False
                 if new_status == "未到货":
                     existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
@@ -699,19 +541,15 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                         "项目部": original_row["项目部"]
                     }
                     send_feishu_notification(material_info)
-                
                 success_count += 1
-                
             except Exception as e:
                 error_count += 1
-                st.error(f"更新记录 {record_id} 时出错: {str(e)}")
                 continue
 
         if save_logistics_status(status_df):
             return success_count, error_count
         else:
             return 0, len(record_ids)
-            
     except Exception as e:
         st.error(f"批量更新状态时出错: {str(e)}")
         return 0, len(record_ids)
@@ -892,13 +730,10 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id和收货地址，保留卸货地址）
             display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
             display_df = filtered_df[display_columns].copy()
             display_df = display_df.reset_index(drop=True)
 
-            # 使用自动保存的数据编辑器
-            # 去除了特定的宽度设置，允许自动调整；确保文本列为TextColumn以保持左对齐
             st.markdown("**物流明细表** (状态更改会自动保存)")
             edited_df = st.data_editor(
                 display_df,
@@ -955,7 +790,6 @@ def show_logistics_tab(project):
 
 
 def auto_process_logistics_changes(edited_df, original_filtered_df, project):
-    """自动处理物流状态更改"""
     if f'logistics_editor_{project}' not in st.session_state:
         return
 
@@ -1137,7 +971,6 @@ def show_project_selection(df):
 
 
 def show_plan_tab(df, project):
-    """显示发货计划标签页"""
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0), key="plan_start")
@@ -1215,7 +1048,6 @@ def show_plan_tab(df, project):
 
 
 def show_statistics_tab(df):
-    """静态数据统计面板"""
     st.header("📊 数据统计分析")
     
     col1, col2, col3 = st.columns([2, 2, 1])
@@ -1321,365 +1153,4 @@ def show_statistics_tab(df):
         with cols[idx]:
             st.markdown(f"""
             <div class="metric-card">
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span style="font-size:1.2rem">{metric[0]}</span>
-                    <span style="font-weight:600">{metric[1]}</span>
-                </div>
-                <div class="card-value">{metric[2]}</div>
-                <div class="card-unit">{metric[3]}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="stat-card">
-        <div class="stat-title">📊 数据分析</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**项目部发货量排名**")
-        project_quantity = filtered_logistics.groupby('项目部')['数量'].sum().sort_values(ascending=False)
-        if not project_quantity.empty:
-            st.dataframe(
-                project_quantity.reset_index().rename(columns={'数量': '发货量(吨)'}),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("暂无项目部排名数据")
-    
-    with col2:
-        st.markdown("**钢厂供货量排名**")
-        factory_quantity = filtered_logistics.groupby('钢厂')['数量'].sum().sort_values(ascending=False)
-        if not factory_quantity.empty:
-            st.dataframe(
-                factory_quantity.reset_index().rename(columns={'数量': '供货量(吨)'}),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info("暂无钢厂排名数据")
-    
-    st.markdown("""
-    <div class="stat-card">
-        <div class="stat-title">📋 物流状态分布</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    status_logistics = merge_logistics_with_status(filtered_logistics)
-    status_distribution = status_logistics['到货状态'].value_counts()
-    
-    if not status_distribution.empty:
-        cols = st.columns(2)
-        with cols[0]:
-            st.markdown("**状态分布统计**")
-            status_df = status_distribution.reset_index()
-            status_df.columns = ['到货状态', '数量']
-            st.dataframe(
-                status_df,
-                use_container_width=True,
-                hide_index=True
-            )
-        
-        with cols[1]:
-            st.markdown("**状态占比**")
-            total_status = status_distribution.sum()
-            for status, count in status_distribution.items():
-                percentage = (count / total_status) * 100
-                st.write(f"{status}: {count}单 ({percentage:.1f}%)")
-    else:
-        st.info("暂无状态分布数据")
-
-
-def show_interactive_analysis(df):
-    """交互式数据分析仪表盘（含动态竞速动画）"""
-    
-    # --- 布局：顶部标题与左右分栏 ---
-    st.markdown("### 🕵️‍♂️ 智能数据透视 & 动态监控")
-    
-    # 将顶部区域分为左右两部分：左边是筛选和指标，右边是动画
-    top_col1, top_col2 = st.columns([1, 1.5], gap="large")
-    
-    # ================= 左侧：筛选与核心指标 =================
-    with top_col1:
-        st.markdown("#### 🌪️ 数据筛选 & 概览")
-        
-        # 1. 筛选器
-        with st.container(border=True):
-            all_projects = ["全部"] + sorted(list(df["项目部"].unique()))
-            all_factories = ["全部"] + sorted(list(df["钢厂"].unique()))
-            
-            sel_projects = st.multiselect("🏗️ 选择项目部", all_projects, default="全部")
-            sel_factories = st.multiselect("🏭 选择钢厂", all_factories, default="全部")
-            
-        # --- 数据过滤逻辑 ---
-        filtered_df = df.copy()
-        if "全部" not in sel_projects and sel_projects:
-            filtered_df = filtered_df[filtered_df["项目部"].isin(sel_projects)]
-        if "全部" not in sel_factories and sel_factories:
-            filtered_df = filtered_df[filtered_df["钢厂"].isin(sel_factories)]
-            
-        if filtered_df.empty:
-            st.warning("⚠️ 当前筛选条件下无数据")
-            return
-
-        # 2. 关键指标概览 (Metric Cards)
-        total_qty = filtered_df["数量"].sum()
-        total_count = len(filtered_df)
-        
-        # 计算最大供应商
-        if not filtered_df.empty:
-            top_supplier_s = filtered_df.groupby("钢厂")["数量"].sum()
-            top_supplier = top_supplier_s.idxmax()
-            top_supplier_val = top_supplier_s.max()
-        else:
-            top_supplier = "无"
-            top_supplier_val = 0
-
-        # 使用 CSS Grid 布局指标卡
-        st.markdown(f"""
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-            <div style="background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #3498db;">
-                <div style="font-size: 12px; color: #666;">📦 筛选总量</div>
-                <div style="font-size: 20px; font-weight: bold; color: #2c3e50;">{total_qty:,.0f} <span style="font-size:12px">吨</span></div>
-            </div>
-            <div style="background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #2ecc71;">
-                <div style="font-size: 12px; color: #666;">📄 订单单数</div>
-                <div style="font-size: 20px; font-weight: bold; color: #2c3e50;">{total_count} <span style="font-size:12px">单</span></div>
-            </div>
-            <div style="grid-column: span 2; background: linear-gradient(135deg, #f6f8fa 0%, #e9ecef 100%); padding: 15px; border-radius: 10px; border-left: 4px solid #e74c3c;">
-                <div style="font-size: 12px; color: #666;">🏆 最大供应商</div>
-                <div style="font-size: 18px; font-weight: bold; color: #2c3e50;">
-                    {top_supplier} 
-                    <span style="font-size:12px; color:#e74c3c; font-weight:normal;">({top_supplier_val:,.0f}吨)</span>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ================= 右侧：动态竞速动画 =================
-    with top_col2:
-        st.markdown("#### 🏁 项目发货量动态竞速 (累计)")
-        
-        # --- 动画数据预处理 ---
-        # 1. 提取日期、项目、数量
-        anim_df = filtered_df[["交货时间", "项目部", "数量"]].copy()
-        anim_df["日期"] = anim_df["交货时间"].dt.date
-        
-        if not anim_df.empty:
-            # 2. 透视表：行=日期，列=项目，值=数量
-            pivot_anim = anim_df.pivot_table(index="日期", columns="项目部", values="数量", aggfunc="sum").fillna(0)
-            
-            # 3. 重采样填充日期（确保动画连续），并计算累计值
-            # 创建完整的日期范围
-            full_date_range = pd.date_range(start=pivot_anim.index.min(), end=pivot_anim.index.max(), freq='D').date
-            pivot_anim = pivot_anim.reindex(full_date_range, fill_value=0)
-            
-            # 计算累计和 (Cumsum)
-            pivot_cumsum = pivot_anim.cumsum()
-            
-            # 4. 逆透视回长格式，以便 Plotly 使用
-            # 【修复 Key Error】：强制指定索引名称，确保 melt 时能找到正确的列
-            pivot_cumsum.index.name = "日期" 
-            race_df = pivot_cumsum.reset_index().melt(id_vars="日期", var_name="项目部", value_name="累计数量")
-            
-            # 格式化日期为字符串，否则动画条可能会出错
-            race_df["日期Str"] = race_df["日期"].astype(str)
-            
-            # 只取累计数量大于0的数据，减少计算量
-            race_df = race_df[race_df["累计数量"] > 0]
-            
-            if not race_df.empty:
-                # 5. 绘制 Bar Chart Race
-                fig_race = px.bar(
-                    race_df, 
-                    x="累计数量", 
-                    y="项目部", 
-                    color="项目部",
-                    animation_frame="日期Str", 
-                    animation_group="项目部",
-                    orientation='h',
-                    text="累计数量",
-                    hover_name="项目部",
-                    range_x=[0, race_df["累计数量"].max() * 1.1] # 固定X轴范围防止抖动
-                )
-                
-                fig_race.update_layout(
-                    xaxis_title="累计发货量 (吨)",
-                    yaxis_title="",
-                    showlegend=False,
-                    height=350, # 调整高度适应布局
-                    margin=dict(l=0, r=0, t=0, b=0),
-                    plot_bgcolor='rgba(0,0,0,0)', # 透明背景
-                    updatemenus=[{
-                        "type": "buttons",
-                        "buttons": [{
-                            "label": "▶️ 播放",
-                            "method": "animate",
-                            "args": [None, {"frame": {"duration": 100, "redraw": True}, "fromcurrent": True}]
-                        }]
-                    }]
-                )
-                # 隐藏每一帧的各个标签，只保留数值
-                fig_race.update_traces(texttemplate='%{text:.0f}', textposition='outside')
-                
-                st.plotly_chart(fig_race, use_container_width=True)
-            else:
-                st.info("数据量不足以生成动画")
-        else:
-            st.info("暂无数据")
-
-    st.markdown("---") # 分割线
-
-    # ================= 底部：详细图表 Tabs =================
-    tab1, tab2, tab3 = st.tabs(["🧬 结构透视 (旭日图)", "🔥 供需热力 (热力图)", "📈 趋势分析 (时序图)"])
-
-    with tab1:
-        # 旭日图
-        fig_sun = px.sunburst(
-            filtered_df,
-            path=['项目部', '物资名称', '规格型号'],
-            values='数量',
-            color='数量', 
-            color_continuous_scale='Blues',
-            height=600
-        )
-        fig_sun.update_traces(textinfo="label+percent entry")
-        st.plotly_chart(fig_sun, use_container_width=True)
-
-    with tab2:
-        # 热力图
-        pivot_data = filtered_df.pivot_table(
-            index='钢厂', 
-            columns='项目部', 
-            values='数量', 
-            aggfunc='sum',
-            fill_value=0
-        )
-        
-        if not pivot_data.empty:
-            fig_heat = px.imshow(
-                pivot_data,
-                labels=dict(x="项目部", y="钢厂", color="发货量(吨)"),
-                x=pivot_data.columns,
-                y=pivot_data.index,
-                text_auto=".0f",
-                aspect="auto",
-                color_continuous_scale="Viridis"
-            )
-            fig_heat.update_layout(height=500)
-            st.plotly_chart(fig_heat, use_container_width=True)
-        else:
-            st.info("数据不足以生成热力图")
-
-    with tab3:
-        # 时序图
-        if '交货时间' in filtered_df.columns:
-            daily_trend = filtered_df.groupby(filtered_df['交货时间'].dt.date)['数量'].sum().reset_index()
-            daily_trend.columns = ['日期', '数量']
-            
-            if not daily_trend.empty:
-                fig_line = px.area(
-                    daily_trend, 
-                    x='日期', 
-                    y='数量',
-                    markers=True,
-                    line_shape='spline'
-                )
-                fig_line.update_layout(
-                    hovermode="x unified",
-                    height=450,
-                    xaxis=dict(
-                        rangeslider=dict(visible=True),
-                        type="date"
-                    )
-                )
-                st.plotly_chart(fig_line, use_container_width=True)
-            else:
-                st.info("暂无时序数据")
-
-
-def show_data_panel(df, project):
-    st.title(f"{project} - 发货数据")
-
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("🔄 刷新数据"):
-            with st.spinner("刷新数据中..."):
-                st.cache_data.clear()
-                st.rerun()
-    with col2:
-        if st.button("← 返回首页"):
-            st.session_state.project_selected = False
-            st.rerun()
-            
-    # 加载物流数据用于交互分析
-    if project == "中铁物贸成都分公司":
-        analysis_df = load_logistics_data() # 加载全部
-    else:
-        full_logistics = load_logistics_data()
-        analysis_df = full_logistics[full_logistics["项目部"] == project]
-    
-    # 确保合并状态
-    if not analysis_df.empty:
-        analysis_df = merge_logistics_with_status(analysis_df)
-
-    if project == "中铁物贸成都分公司":
-        # 总部视图
-        tab1, tab2, tab3, tab4 = st.tabs(["📋 发货计划", "🚛 物流明细", "📊 静态统计", "🔍 交互分析"])
-    else:
-        # 项目部视图
-        tab1, tab2, tab3 = st.tabs(["📋 发货计划", "🚛 物流明细", "🔍 交互分析"])
-
-    with tab1:
-        show_plan_tab(df, project)
-        
-    with tab2:
-        show_logistics_tab(project)
-        
-    if project == "中铁物贸成都分公司":
-        with tab3:
-            show_statistics_tab(df)
-        with tab4:
-             if not analysis_df.empty:
-                 show_interactive_analysis(analysis_df)
-             else:
-                 st.info("暂无数据可分析")
-    else:
-        with tab3:
-             if not analysis_df.empty:
-                 show_interactive_analysis(analysis_df)
-             else:
-                 st.info("暂无数据可分析")
-
-
-# ==================== 主程序 ====================
-def main():
-    st.set_page_config(
-        layout="wide",
-        page_title="钢筋发货监控系统",
-        page_icon="🏗️",
-        initial_sidebar_state="expanded"
-    )
-    apply_card_styles()
-
-    if 'project_selected' not in st.session_state:
-        st.session_state.project_selected = False
-    if 'selected_project' not in st.session_state:
-        st.session_state.selected_project = "中铁物贸成都分公司"
-
-    handle_url_parameters()
-
-    with st.spinner('加载数据中...'):
-        df = load_data()
-
-    if not st.session_state.project_selected:
-        show_project_selection(df)
-    else:
-        show_data_panel(df, st.session_state.selected_project)
-
-
-if __name__ == "__main__":
-    main()
+                <div style="display:flex; ali
