@@ -23,7 +23,7 @@ class AppConfig:
 
     LOGISTICS_SHEET_NAME = "物流明细"
     
-    # 【修改点】：调整列顺序，"卸货地址" 放在 "联系人" 左边
+    # 调整列顺序，"卸货地址" 放在 "联系人" 左边
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "卸货地址", "联系人", "联系方式", "项目部",
@@ -1481,8 +1481,9 @@ def show_interactive_analysis(df):
             pivot_cumsum = pivot_anim.cumsum()
             
             # 4. 逆透视回长格式，以便 Plotly 使用
-            race_df = pivot_cumsum.reset_index().melt(id_vars="index", var_name="项目部", value_name="累计数量")
-            race_df.rename(columns={"index": "日期"}, inplace=True)
+            # 【修复 Key Error】：强制指定索引名称，确保 melt 时能找到正确的列
+            pivot_cumsum.index.name = "日期" 
+            race_df = pivot_cumsum.reset_index().melt(id_vars="日期", var_name="项目部", value_name="累计数量")
             
             # 格式化日期为字符串，否则动画条可能会出错
             race_df["日期Str"] = race_df["日期"].astype(str)
