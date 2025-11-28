@@ -3244,3 +3244,14 @@ Already up to date.
 From github.com:monizhou/TVBOX
  * branch            main       -> FETCH_HEAD
 Already up to date.
+[main e842fa7] 自动更新: 2025-11-28 14:56:44 - 发货计划（宜宾项目）汇总.xlsm
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+ rename auto_push.sh => auto_sync.sh (70%)
+To github.com:monizhou/TVBOX.git
+   fbab60d..e842fa7  main -> main
+[2025-11-28 14:56:50] 同步成功：已推送到 GitHub
+[2025-11-28 14:57:47] 文件复制成功: 发货计划（宜宾项目）汇总.xlsm
+[2025-11-28 14:57:47] 准备同步，正在检查远程更新...
+From github.com:monizhou/TVBOX
+ * branch            main       -> FETCH_HEAD
+Already up to date.
