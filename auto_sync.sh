@@ -76,3 +76,26 @@ if [ -z "$(git status --porcelain)" ]; then
 fi
 
 # 4.3 提交变动
+git add . >> "$LOG_FILE" 2>&1
+git commit -m "自动更新: $(date '+%Y-%m-%d %H:%M:%S') - $FILENAME" >> "$LOG_FILE" 2>&1
+
+# 4.4 推送 (带重试与冲突修复)
+retry=0
+while [ $retry -lt $MAX_RETRIES ]; do
+    # 尝试推送
+    if git push origin main >> "$LOG_FILE" 2>&1; then
+        log "同步成功：已推送到 GitHub"
+        exit 0
+    else
+        log "推送失败，可能是远程又有更新，正在尝试 '拉取并合并' 后重试 ($((retry+1))/$MAX_RETRIES)..."
+        
+        # 关键操作：推送失败通常是因为远程比本地新，所以再次拉取
+        git pull origin main >> "$LOG_FILE" 2>&1
+        
+        retry=$((retry+1))
+        sleep 10
+    fi
+done
+
+log "严重错误：Git 推送最终失败，请手动检查网络或冲突！"
+exit 1
