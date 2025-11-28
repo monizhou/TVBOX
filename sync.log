@@ -3124,3 +3124,113 @@ hint: See the 'Note about fast-forwards' in 'git push --help' for details.
 [2025-11-28 14:43:22] Git推送失败，正在重试 (3/3)
 [2025-11-28 14:43:32] 错误：Git推送失败！
 [2025-11-28 14:45:13] 文件复制成功: -rw-r--r-- 1 Administrator 197121 4611524 Nov 28 14:45 发货计划（宜宾项目）汇总.xlsm
+[main 3d1c297] 自动更新: 2025-11-28 14:45:13
+ 1 file changed, 1 insertion(+)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:45:18] Git推送失败，正在重试 (1/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:45:32] Git推送失败，正在重试 (2/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:45:46] Git推送失败，正在重试 (3/3)
+[2025-11-28 14:45:56] 错误：Git推送失败！
+[2025-11-28 14:46:45] 文件复制成功: -rw-r--r-- 1 Administrator 197121 4611524 Nov 28 14:46 发货计划（宜宾项目）汇总.xlsm
+[main 31c4c88] 自动更新: 2025-11-28 14:46:46
+ 1 file changed, 28 insertions(+)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:46:51] Git推送失败，正在重试 (1/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:47:05] Git推送失败，正在重试 (2/3)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:47:20] Git推送失败，正在重试 (3/3)
+[2025-11-28 14:47:30] 错误：Git推送失败！
+[main a139965] 自动更新: 2025-11-28 14:48:33 - 发货计划（宜宾项目）汇总.xlsm
+ 2 files changed, 69 insertions(+), 20 deletions(-)
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:48:37] Git推送失败，正在重试 (1/3)...
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:48:53] Git推送失败，正在重试 (2/3)...
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'githuTo github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:49:10] Git推送失败，正在重试 (1/3)...
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:49:26] Git推送失败，正在重试 (2/3)...
+To github.com:monizhou/TVBOX.git
+ ! [rejected]        main -> main (non-fast-forward)
+error: failed to push some refs to 'github.com:monizhou/TVBOX.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. If you want to integrate the remote changes,
+hint: use 'git pull' before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+[2025-11-28 14:49:40] Git推送失败，正在重试 (3/3)...
+[2025-11-28 14:49:50] 错误：Git推送最终失败，请检查网络连接。
+[2025-11-28 14:53:09] 文件复制成功: 发货计划（宜宾项目）汇总.xlsm
+[2025-11-28 14:53:09] 准备同步，正在检查远程更新...
+From github.com:monizhou/TVBOX
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+[2025-11-28 14:53:35] 文件复制成功: 发货计划（宜宾项目）汇总.xlsm
+[2025-11-28 14:53:35] 准备同步，正在检查远程更新...
+From github.com:monizhou/TVBOX
+ * branch            main       -> FETCH_HEAD
+Already up to date.
