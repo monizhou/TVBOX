@@ -33,6 +33,7 @@ class AppConfig:
         '标段名称': ['项目标段', '工程名称', '标段'],
         '物资名称': ['材料名称', '品名', '名称'],
         '需求量': ['需求吨位', '计划量', '数量'],
+        # '下单时间' 这里保留作为备用，主要逻辑已改为强制读取M列
         '下单时间': ['创建时间', '日期', '录入时间']
     }
     WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/dcf16af3-78d2-433f-9c3d-b4cd108c7b60"
@@ -70,6 +71,7 @@ class AppConfig:
         "ybxgsjxcjgyy": "宜宾兴港三江新区长江工业园建设项目",
         "ztkyybnx": "中铁科研院宜宾泥溪项目",
         "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
+        "wyjsyxh3": "五冶建设怡心湖怡心湖3号地块项目"
     }
 
     CARD_STYLES = {
@@ -404,6 +406,11 @@ def load_data():
     try:
         with st.spinner("正在加载基础数据..."):
             df = pd.read_excel(data_path, engine='openpyxl')
+            
+            # 【修改点1】强制映射 M 列（索引12）为下单时间
+            # 如果文件至少有13列，则强制使用第13列作为下单时间
+            if df.shape[1] > 12:
+                df["下单时间"] = df.iloc[:, 12]
 
             for std_col, alt_cols in AppConfig.BACKUP_COL_MAPPING.items():
                 for alt_col in alt_cols:
@@ -1205,14 +1212,9 @@ def show_plan_tab(df, project):
                 </div>
             </div>
             """, unsafe_allow_html=True)
-
-            st.download_button(
-                "⬇️ 导出数据",
-                display_df.to_csv(index=False).encode('utf-8-sig'),
-                f"{project}_发货数据_{start_date}_{end_date}.csv",
-                "text/csv",
-                use_container_width=True
-            )
+            
+            # 【修改点2】：移除了此处的数据导出按钮代码
+            
         else:
             st.info("该时间段无数据")
 
