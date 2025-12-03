@@ -71,7 +71,7 @@ class AppConfig:
         "ybxgsjxcjgyy": "宜宾兴港三江新区长江工业园建设项目",
         "ztkyybnx": "中铁科研院宜宾泥溪项目",
         "ztsjxtykyzf4": "中铁三局集团西渝高铁康渝段站房四标工程"
-        "wyjsyxh3": "五冶建设怡心湖怡心湖3号地块项目"
+        
     }
 
     CARD_STYLES = {
@@ -1456,3 +1456,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
