@@ -404,6 +404,10 @@ def load_data():
     try:
         with st.spinner("正在加载基础数据..."):
             df = pd.read_excel(data_path, engine='openpyxl')
+            
+            # 【关键修改点】：强制映射第13列（索引12，M列）为“下单时间”
+            if df.shape[1] > 12:
+                df["下单时间"] = df.iloc[:, 12]
 
             for std_col, alt_cols in AppConfig.BACKUP_COL_MAPPING.items():
                 for alt_col in alt_cols:
