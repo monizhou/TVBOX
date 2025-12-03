@@ -21,7 +21,6 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
-    # 【修改点】：调整列顺序，将"卸货地址"移动到"联系人"左边
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "卸货地址", "联系人", "联系方式", "项目部",
@@ -33,18 +32,15 @@ class AppConfig:
         '标段名称': ['项目标段', '工程名称', '标段'],
         '物资名称': ['材料名称', '品名', '名称'],
         '需求量': ['需求吨位', '计划量', '数量'],
-        # '下单时间' 这里保留作为备用，主要逻辑已改为强制读取M列
         '下单时间': ['创建时间', '日期', '录入时间']
     }
     WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/dcf16af3-78d2-433f-9c3d-b4cd108c7b60"
     LOGISTICS_DATE_RANGE_DAYS = 5
 
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
-    # 扩展状态选项
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
 
-    # 项目名称映射（拼音标识）
     PROJECT_MAPPING = {
         "ztwm": "中铁物贸成都分公司",
         "sdtjdzzyykjy": "商投建工达州中医药科技园",
@@ -127,7 +123,6 @@ def find_data_file():
 def apply_card_styles():
     st.markdown(f"""
     <style>
-        /* 新增备注卡片样式 */
         .remark-card {{
             background: rgba(245, 245, 247, 0.9);
             border-radius: 10px;
@@ -145,7 +140,6 @@ def apply_card_styles():
             padding: 1rem;
         }}
 
-        /* 苹果风格标签页 */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 8px;
             padding: 8px 0;
@@ -186,7 +180,6 @@ def apply_card_styles():
                         inset 0 0 0 1px rgba(0, 0, 0, 0.06);
         }}
 
-        /* 适配移动端 */
         @media (max-width: 768px) {{
             .stTabs [data-baseweb="tab-list"] {{
                 flex-wrap: wrap;
@@ -294,7 +287,6 @@ def apply_card_styles():
             animation: fadeIn 0.6s ease-out;
         }}
         
-        /* 批量更新样式 */
         .batch-update-card {{
             background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
@@ -310,7 +302,6 @@ def apply_card_styles():
             color: #2c3e50;
         }}
         
-        /* 统计图表样式 */
         .stat-card {{
             background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
@@ -406,10 +397,12 @@ def load_data():
         with st.spinner("正在加载基础数据..."):
             df = pd.read_excel(data_path, engine='openpyxl')
             
-            # 【修改点1】强制映射 M 列（索引12）为下单时间
-            # 如果文件至少有13列，则强制使用第13列作为下单时间
+            # 【关键修改】强制映射 M 列（索引12）为下单时间，并增加容错处理
             if df.shape[1] > 12:
-                df["下单时间"] = df.iloc[:, 12]
+                # 先复制出来，避免视图警告
+                time_col = df.iloc[:, 12].copy()
+                # 强制覆盖为"下单时间"列
+                df["下单时间"] = time_col
 
             for std_col, alt_cols in AppConfig.BACKUP_COL_MAPPING.items():
                 for alt_col in alt_cols:
@@ -429,7 +422,10 @@ def load_data():
             df[AppConfig.PROJECT_COLUMN] = df.iloc[:, 17].astype(str).str.strip().replace({
                 "": "未指定项目部", "nan": "未指定项目部", "None": "未指定项目部", None: "未指定项目部"})
 
+            # 日期转换：增加 errors='coerce' 将无法解析的（如标题、空文本）转为 NaT
             df["下单时间"] = pd.to_datetime(df["下单时间"], errors='coerce').dt.tz_localize(None)
+            
+            # 过滤掉日期为空的行（这步会把所有日期解析失败的行过滤掉，所以M列必须是有效日期）
             df = df[~df["下单时间"].isna()]
 
             df["需求量"] = safe_convert_to_numeric(df["需求量"]).astype(int)
@@ -459,12 +455,10 @@ def load_logistics_data():
 
     try:
         with st.spinner("正在加载物流数据..."):
-            # 尝试读取物流明细表
             try:
                 df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
                 
-                # 【新增逻辑】强制从 G列 (索引6) 读取数据作为 "卸货地址"
-                # 无论Excel表头是什么，G列被视为卸货地址
+                # 强制从 G列 (索引6) 读取数据作为 "卸货地址"
                 if df.shape[1] > 6:
                     df["卸货地址"] = df.iloc[:, 6].astype(str).replace({"nan": "", "None": ""})
                 else:
@@ -478,12 +472,10 @@ def load_logistics_data():
                 st.warning("物流明细表为空")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
-            # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
                     df[col] = "" if col != "数量" else 0
 
-            # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
                 "": "未指定物资", "nan": "未指定物资", "None": "未指定物资", None: "未指定物资"})
             df["钢厂"] = df["钢厂"].astype(str).str.strip().replace({
@@ -491,13 +483,10 @@ def load_logistics_data():
             df["项目部"] = df["项目部"].astype(str).str.strip().replace({
                 "未指定项目部": "", "nan": "", "None": "", None: ""})
 
-            # 过滤掉项目部为空的数据
             df = df[df["项目部"] != ""]
 
-            # 安全转换数值列
             def safe_convert_numeric(series):
                 if series.dtype == 'object':
-                    # 处理字符串中的通配符和非数字字符
                     cleaned = series.astype(str).str.replace(r'[^\d.-]', '', regex=True)
                     cleaned = cleaned.replace({'': '0', 'nan': '0', 'None': '0', ' ': '0'})
                     return pd.to_numeric(cleaned, errors='coerce').fillna(0)
@@ -505,30 +494,23 @@ def load_logistics_data():
                     return pd.to_numeric(series, errors='coerce').fillna(0)
 
             df["数量"] = safe_convert_numeric(df["数量"])
-
-            # 处理日期列
             df["交货时间"] = pd.to_datetime(df["交货时间"], errors="coerce")
-
-            # 处理文本列
             df["联系方式"] = df["联系方式"].astype(str)
-            # 再次确保卸货地址列存在并格式化
+            
             if "卸货地址" in df.columns:
                 df["卸货地址"] = df["卸货地址"].astype(str).replace({"nan": "", "None": ""})
 
-            # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
 
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
 
     except Exception as e:
         st.error(f"物流数据加载失败: {str(e)}")
-        # 返回一个空的DataFrame，包含必要的列
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
 
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
-    """加载物流状态，只包含到货状态"""
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
         try:
             with st.spinner("加载物流状态..."):
@@ -557,7 +539,6 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
-    """合并物流数据和状态数据，添加3天自动到货逻辑，默认状态为钢厂已接单"""
     if logistics_df.empty:
         return logistics_df
 
@@ -612,7 +593,6 @@ def merge_logistics_with_status(logistics_df):
 
 
 def update_logistics_status(record_id, new_status, original_row=None):
-    """更新物流状态（带错误处理）"""
     try:
         status_df = load_logistics_status()
 
@@ -659,7 +639,6 @@ def update_logistics_status(record_id, new_status, original_row=None):
 
 
 def batch_update_logistics_status(record_ids, new_status, original_rows=None):
-    """批量更新物流状态"""
     try:
         status_df = load_logistics_status()
         
@@ -720,7 +699,6 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         return 0, len(record_ids)
 
 
-# ==================== URL参数处理 ====================
 def handle_url_parameters():
     query_params = st.query_params
     
@@ -768,7 +746,6 @@ def get_valid_projects():
     return valid_projects
 
 
-# ==================== 页面组件 ====================
 def show_logistics_tab(project):
     yesterday = datetime.now().date() - timedelta(days=1)
     
@@ -799,7 +776,6 @@ def show_logistics_tab(project):
             )
             filtered_df = logistics_df[mask].copy()
 
-            # =============== 统一卡片样式 ===============
             st.markdown('<div class="metric-container">', unsafe_allow_html=True)
 
             overdue_count = filtered_df['到货状态'].eq('未到货').sum()
@@ -832,7 +808,6 @@ def show_logistics_tab(project):
 
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
 
-            # =============== 批量更新功能 ===============
             st.markdown("""
             <div class="batch-update-card">
                 <div class="batch-update-title">📦 批量更新到货状态</div>
@@ -895,13 +870,10 @@ def show_logistics_tab(project):
                     else:
                         st.error("❌ 批量更新失败，请重试")
 
-            # 准备显示的列（排除record_id和收货地址，保留卸货地址）
             display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
             display_df = filtered_df[display_columns].copy()
             display_df = display_df.reset_index(drop=True)
 
-            # 使用自动保存的数据编辑器
-            # 去除了特定的宽度设置，允许自动调整；确保文本列为TextColumn以保持左对齐
             st.markdown("**物流明细表** (状态更改会自动保存)")
             edited_df = st.data_editor(
                 display_df,
@@ -913,26 +885,21 @@ def show_logistics_tab(project):
                         options=AppConfig.STATUS_OPTIONS,
                         default="公司统筹中",
                         required=True,
-                        # 去除width设置以自动调整
                     ),
                     "备注": st.column_config.TextColumn(
                         "备注",
                         help="可自由编辑的备注信息",
-                        # 去除width设置以自动调整
                     ),
                     "数量": st.column_config.NumberColumn(
                         "数量",
                         format="%d",
-                        # 去除width设置以自动调整
                     ),
                     "交货时间": st.column_config.DatetimeColumn(
                         "交货时间",
                         format="YYYY-MM-DD HH:mm",
-                        # 去除width设置以自动调整
                     ),
                     "卸货地址": st.column_config.TextColumn(
                         "卸货地址",
-                        # 明确指定为TextColumn以确保左对齐
                     ),
                     "钢厂": st.column_config.TextColumn("钢厂"),
                     "物资名称": st.column_config.TextColumn("物资名称"),
@@ -940,7 +907,6 @@ def show_logistics_tab(project):
                     "联系人": st.column_config.TextColumn("联系人"),
                     "联系方式": st.column_config.TextColumn("联系方式"),
                     "项目部": st.column_config.TextColumn("项目部"),
-                    # 其他列自动配置
                 },
                 key=f"logistics_editor_{project}"
             )
@@ -964,7 +930,6 @@ def show_logistics_tab(project):
 
 
 def auto_process_logistics_changes(edited_df, original_filtered_df, project):
-    """自动处理物流状态更改"""
     if f'logistics_editor_{project}' not in st.session_state:
         return
 
@@ -1149,7 +1114,8 @@ def show_plan_tab(df, project):
     """显示发货计划标签页"""
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=0), key="plan_start")
+        # 【修改点】：默认时间改为30天前，确保有数据能显示
+        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=30), key="plan_start")
     with col2:
         end_date = st.date_input("结束日期", datetime.now(), key="plan_end")
 
@@ -1159,6 +1125,11 @@ def show_plan_tab(df, project):
         
     with st.spinner("筛选数据..."):
         filtered_df = df if project == "中铁物贸成都分公司" else df[df[AppConfig.PROJECT_COLUMN] == project]
+        
+        if "下单时间" not in filtered_df.columns:
+             st.error("数据中缺少'下单时间'列，请检查Excel文件格式")
+             return
+
         date_range_df = filtered_df[
             (filtered_df["下单时间"].dt.date >= start_date) &
             (filtered_df["下单时间"].dt.date <= end_date)
@@ -1212,10 +1183,8 @@ def show_plan_tab(df, project):
             </div>
             """, unsafe_allow_html=True)
             
-            # 【修改点2】：移除了此处的数据导出按钮代码
-            
         else:
-            st.info("该时间段无数据")
+            st.info(f"该时间段 ({start_date} 至 {end_date}) 无发货计划数据")
 
 
 def show_statistics_tab(df):
