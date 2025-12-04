@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""钢筋发货监控系统（中铁总部视图版）- 移动端适配增强版"""
+"""钢筋发货监控系统（中铁总部视图版）- 物流状态独立存储版"""
 import os
+import re
 import time
 from datetime import datetime, timedelta
 import pandas as pd
@@ -8,6 +9,7 @@ import streamlit as st
 import requests
 import hashlib
 import json
+
 
 # ==================== 系统配置 ====================
 class AppConfig:
@@ -19,6 +21,7 @@ class AppConfig:
     ]
 
     LOGISTICS_SHEET_NAME = "物流明细"
+    # 【修改点】：调整列顺序，将"卸货地址"移动到"联系人"左边
     LOGISTICS_COLUMNS = [
         "钢厂", "物资名称", "规格型号", "单位", "数量",
         "交货时间", "卸货地址", "联系人", "联系方式", "项目部",
@@ -36,9 +39,11 @@ class AppConfig:
     LOGISTICS_DATE_RANGE_DAYS = 5
 
     LOGISTICS_STATUS_FILE = "logistics_status.csv"
+    # 扩展状态选项
     STATUS_OPTIONS = ["公司统筹中", "钢厂已接单", "运输装货中", "已到货", "未到货"]
     PROJECT_COLUMN = "项目部名称"
 
+    # 项目名称映射（拼音标识）
     PROJECT_MAPPING = {
         "ztwm": "中铁物贸成都分公司",
         "sdtjdzzyykjy": "商投建工达州中医药科技园",
@@ -121,31 +126,6 @@ def find_data_file():
 def apply_card_styles():
     st.markdown(f"""
     <style>
-        /* 响应式网格布局 (用于Metrics) */
-        .metric-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 1rem;
-            margin: 1rem 0;
-            animation: fadeIn 0.6s ease-out;
-        }}
-
-        /* 移动端针对性优化 */
-        @media (max-width: 640px) {{
-            .block-container {{
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
-                padding-top: 2rem !important;
-            }}
-            .stTabs [data-baseweb="tab"] {{
-                padding: 8px 10px !important;
-                font-size: 13px !important;
-                flex: 1; 
-            }}
-            h1 {{ font-size: 1.8rem !important; }}
-            .welcome-header {{ font-size: 2rem !important; }}
-        }}
-
         /* 新增备注卡片样式 */
         .remark-card {{
             background: rgba(245, 245, 247, 0.9);
@@ -158,14 +138,16 @@ def apply_card_styles():
         .plan-remark {{ border-color: #2196F3; }}
         .logistics-remark {{ border-color: #4CAF50; }}
         .remark-content {{
-            font-size: 1rem; color: #666;
+            font-size: 1rem;
+            color: #666;
             text-align: center;
             padding: 1rem;
         }}
 
         /* 苹果风格标签页 */
         .stTabs [data-baseweb="tab-list"] {{
-            gap: 8px; padding: 8px 0;
+            gap: 8px;
+            padding: 8px 0;
             background: #f5f5f7;
             border-radius: 12px;
             margin: 1rem 0;
@@ -197,6 +179,23 @@ def apply_card_styles():
                         inset 0 0 0 1px rgba(0, 0, 0, 0.04);
         }}
 
+        .stTabs [aria-selected="true"]:hover {{
+            transform: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1),
+                        inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+        }}
+
+        /* 适配移动端 */
+        @media (max-width: 768px) {{
+            .stTabs [data-baseweb="tab-list"] {{
+                flex-wrap: wrap;
+            }}
+            .stTabs [data-baseweb="tab"] {{
+                flex: 1 1 45%;
+                margin: 4px !important;
+                text-align: center;
+            }}
+        }}
         {AppConfig.CARD_STYLES['number_animation']}
         {AppConfig.CARD_STYLES['floating_animation']}
         {AppConfig.CARD_STYLES['pulse_animation']}
@@ -206,33 +205,40 @@ def apply_card_styles():
             to {{ opacity: 1; transform: translateY(0); }}
         }}
 
+        .metric-container {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 1rem; 
+            margin: 1rem 0; 
+            animation: fadeIn 0.6s ease-out;
+        }}
         .metric-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
             transition: all 0.3s ease;
-            padding: 1.2rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            padding: 1.5rem;
         }}
         .metric-card:hover {{
             transform: translateY(-5px);
             box-shadow: {AppConfig.CARD_STYLES['hover_shadow']};
         }}
         .card-value {{
-            font-size: 1.8rem;
+            font-size: 2rem;
             font-weight: 700;
             background: linear-gradient(45deg, #2c3e50, #3498db);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             animation: countup 0.8s ease-out;
-            margin: 0.3rem 0;
+            margin: 0.5rem 0;
         }}
         .card-unit {{
             font-size: 0.9rem;
             color: #666;
         }}
         .overdue-row {{ background-color: #ffdddd !important; }}
-        
+        .status-arrived {{ background-color: #ddffdd !important; }}
+        .status-not-arrived {{ background-color: #ffdddd !important; }}
+        .status-empty {{ background-color: transparent !important; }}
+
         .home-card {{
             {AppConfig.CARD_STYLES['glass_effect']}
             padding: 1.5rem;
@@ -282,6 +288,9 @@ def apply_card_styles():
             margin-bottom: 2rem;
             position: relative;
             padding-bottom: 0.5rem;
+        }}
+        .dataframe {{
+            animation: fadeIn 0.6s ease-out;
         }}
         
         /* 批量更新样式 */
@@ -444,13 +453,17 @@ def load_logistics_data():
 
     try:
         with st.spinner("正在加载物流数据..."):
+            # 尝试读取物流明细表
             try:
                 df = pd.read_excel(data_path, sheet_name=AppConfig.LOGISTICS_SHEET_NAME, engine='openpyxl')
-                # 强制从 G列 (索引6) 读取数据作为 "卸货地址"
+                
+                # 【新增逻辑】强制从 G列 (索引6) 读取数据作为 "卸货地址"
+                # 无论Excel表头是什么，G列被视为卸货地址
                 if df.shape[1] > 6:
                     df["卸货地址"] = df.iloc[:, 6].astype(str).replace({"nan": "", "None": ""})
                 else:
                     df["卸货地址"] = ""
+                    
             except Exception as e:
                 st.warning(f"未找到'{AppConfig.LOGISTICS_SHEET_NAME}'工作表: {str(e)}")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
@@ -459,10 +472,12 @@ def load_logistics_data():
                 st.warning("物流明细表为空")
                 return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
+            # 确保所有必要的列都存在
             for col in AppConfig.LOGISTICS_COLUMNS:
                 if col not in df.columns:
                     df[col] = "" if col != "数量" else 0
 
+            # 数据清洗和格式化
             df["物资名称"] = df["物资名称"].astype(str).str.strip().replace({
                 "": "未指定物资", "nan": "未指定物资", "None": "未指定物资", None: "未指定物资"})
             df["钢厂"] = df["钢厂"].astype(str).str.strip().replace({
@@ -470,10 +485,13 @@ def load_logistics_data():
             df["项目部"] = df["项目部"].astype(str).str.strip().replace({
                 "未指定项目部": "", "nan": "", "None": "", None: ""})
 
+            # 过滤掉项目部为空的数据
             df = df[df["项目部"] != ""]
 
+            # 安全转换数值列
             def safe_convert_numeric(series):
                 if series.dtype == 'object':
+                    # 处理字符串中的通配符和非数字字符
                     cleaned = series.astype(str).str.replace(r'[^\d.-]', '', regex=True)
                     cleaned = cleaned.replace({'': '0', 'nan': '0', 'None': '0', ' ': '0'})
                     return pd.to_numeric(cleaned, errors='coerce').fillna(0)
@@ -481,22 +499,30 @@ def load_logistics_data():
                     return pd.to_numeric(series, errors='coerce').fillna(0)
 
             df["数量"] = safe_convert_numeric(df["数量"])
+
+            # 处理日期列
             df["交货时间"] = pd.to_datetime(df["交货时间"], errors="coerce")
+
+            # 处理文本列
             df["联系方式"] = df["联系方式"].astype(str)
+            # 再次确保卸货地址列存在并格式化
             if "卸货地址" in df.columns:
                 df["卸货地址"] = df["卸货地址"].astype(str).replace({"nan": "", "None": ""})
 
+            # 生成唯一记录ID
             df["record_id"] = df.apply(generate_record_id, axis=1)
 
             return df[AppConfig.LOGISTICS_COLUMNS + ["record_id"]]
 
     except Exception as e:
         st.error(f"物流数据加载失败: {str(e)}")
+        # 返回一个空的DataFrame，包含必要的列
         return pd.DataFrame(columns=AppConfig.LOGISTICS_COLUMNS + ["record_id"])
 
 
 # ==================== 物流状态管理 ====================
 def load_logistics_status():
+    """加载物流状态，只包含到货状态"""
     if os.path.exists(AppConfig.LOGISTICS_STATUS_FILE):
         try:
             with st.spinner("加载物流状态..."):
@@ -525,10 +551,12 @@ def save_logistics_status(status_df):
 
 
 def merge_logistics_with_status(logistics_df):
+    """合并物流数据和状态数据，添加3天自动到货逻辑，默认状态为钢厂已接单"""
     if logistics_df.empty:
         return logistics_df
 
     status_df = load_logistics_status()
+    
     current_date = datetime.now().date()
     three_days_ago = current_date - timedelta(days=3)
     
@@ -560,6 +588,7 @@ def merge_logistics_with_status(logistics_df):
         mask_old_delivery = merged["交货时间"].apply(
             lambda x: pd.notna(x) and x.date() < three_days_ago
         )
+        
         merged.loc[mask_no_status & mask_old_delivery, "到货状态"] = "已到货"
         merged.loc[mask_no_status & ~mask_old_delivery, "到货状态"] = "钢厂已接单"
         merged.loc[~mask_no_status, "到货状态"] = merged.loc[~mask_no_status, "到货状态_status"]
@@ -577,8 +606,10 @@ def merge_logistics_with_status(logistics_df):
 
 
 def update_logistics_status(record_id, new_status, original_row=None):
+    """更新物流状态（带错误处理）"""
     try:
         status_df = load_logistics_status()
+
         if new_status is None:
             new_status = "公司统筹中"
         new_status = str(new_status).strip()
@@ -591,7 +622,8 @@ def update_logistics_status(record_id, new_status, original_row=None):
 
         if record_id in status_df["record_id"].values:
             status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
-            status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
+            status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
+                AppConfig.DATE_FORMAT)
         else:
             new_record = pd.DataFrame([{
                 "record_id": record_id,
@@ -606,7 +638,8 @@ def update_logistics_status(record_id, new_status, original_row=None):
                     "物资名称": original_row["物资名称"],
                     "规格型号": original_row["规格型号"],
                     "数量": original_row["数量"],
-                    "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(original_row["交货时间"]) else "未知",
+                    "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(
+                        original_row["交货时间"]) else "未知",
                     "项目部": original_row["项目部"]
                 }
                 if send_feishu_notification(material_info):
@@ -620,8 +653,10 @@ def update_logistics_status(record_id, new_status, original_row=None):
 
 
 def batch_update_logistics_status(record_ids, new_status, original_rows=None):
+    """批量更新物流状态"""
     try:
         status_df = load_logistics_status()
+        
         if new_status is None:
             new_status = "公司统筹中"
         new_status = str(new_status).strip()
@@ -632,6 +667,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
         for i, record_id in enumerate(record_ids):
             try:
                 original_row = original_rows[i] if original_rows and i < len(original_rows) else None
+                
                 send_notification = False
                 if new_status == "未到货":
                     existing_status = status_df.loc[status_df["record_id"] == record_id, "到货状态"]
@@ -640,7 +676,8 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
 
                 if record_id in status_df["record_id"].values:
                     status_df.loc[status_df["record_id"] == record_id, "到货状态"] = new_status
-                    status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(AppConfig.DATE_FORMAT)
+                    status_df.loc[status_df["record_id"] == record_id, "update_time"] = datetime.now().strftime(
+                        AppConfig.DATE_FORMAT)
                 else:
                     new_record = pd.DataFrame([{
                         "record_id": record_id,
@@ -654,10 +691,12 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
                         "物资名称": original_row["物资名称"],
                         "规格型号": original_row["规格型号"],
                         "数量": original_row["数量"],
-                        "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(original_row["交货时间"]) else "未知",
+                        "交货时间": original_row["交货时间"].strftime("%Y-%m-%d %H:%M") if pd.notna(
+                            original_row["交货时间"]) else "未知",
                         "项目部": original_row["项目部"]
                     }
                     send_feishu_notification(material_info)
+                
                 success_count += 1
                 
             except Exception as e:
@@ -678,6 +717,7 @@ def batch_update_logistics_status(record_ids, new_status, original_rows=None):
 # ==================== URL参数处理 ====================
 def handle_url_parameters():
     query_params = st.query_params
+    
     if 'project' in query_params:
         project_key = query_params['project']
         if isinstance(project_key, list):
@@ -691,6 +731,7 @@ def handle_url_parameters():
         if project_name in valid_projects:
             st.session_state.project_selected = True
             st.session_state.selected_project = project_name
+            
             if project_name == "中铁物贸成都分公司":
                 st.session_state.need_password = True
             else:
@@ -703,16 +744,21 @@ def handle_url_parameters():
 def get_valid_projects():
     logistics_df = load_logistics_data()
     valid_projects = ["中铁物贸成都分公司"]
+    
     if not logistics_df.empty:
         current_date = datetime.now().date()
         start_date = current_date - timedelta(days=15)
         end_date = current_date + timedelta(days=15)
+
         logistics_df = logistics_df.dropna(subset=['交货时间'])
         logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
+
         mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
         filtered_logistics = logistics_df[mask]
+
         project_list = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
         valid_projects.extend(project_list)
+    
     return valid_projects
 
 
@@ -737,6 +783,7 @@ def show_logistics_tab(project):
 
         if not logistics_df.empty:
             logistics_df = merge_logistics_with_status(logistics_df)
+
             start_date_pd = pd.to_datetime(logistics_start_date)
             end_date_pd = pd.to_datetime(logistics_end_date) + timedelta(days=1)
 
@@ -746,13 +793,15 @@ def show_logistics_tab(project):
             )
             filtered_df = logistics_df[mask].copy()
 
-            # =============== 统一卡片样式 (移动端优化) ===============
-            # 使用 CSS Grid 替代 st.columns 以实现自动换行
+            # =============== 统一卡片样式 ===============
+            st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+
             overdue_count = filtered_df['到货状态'].eq('未到货').sum()
             total_count = len(filtered_df)
             arrived_count = filtered_df['到货状态'].eq('已到货').sum()
             in_progress_count = total_count - arrived_count - overdue_count
 
+            cols = st.columns(4)
             metrics = [
                 ("📦", "总物流单数", f"{total_count}", "单"),
                 ("✅", "已到货单数", f"{arrived_count}", "单"),
@@ -760,210 +809,137 @@ def show_logistics_tab(project):
                 ("⚠️", "未到货订单", f"{overdue_count}", "单")
             ]
 
-            st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
-            for metric in metrics:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div style="display:flex; align-items:center; gap:0.5rem;">
-                        <span style="font-size:1.2rem">{metric[0]}</span>
-                        <span style="font-weight:600; font-size:0.9rem;">{metric[1]}</span>
+            for idx, metric in enumerate(metrics):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span style="font-size:1.2rem">{metric[0]}</span>
+                            <span style="font-weight:600">{metric[1]}</span>
+                        </div>
+                        <div class="card-value">{metric[2]}</div>
+                        <div class="card-unit">{metric[3]}</div>
                     </div>
-                    <div class="card-value">{metric[2]}</div>
-                    <div class="card-unit">{metric[3]}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.caption(f"显示 {logistics_start_date} 至 {logistics_end_date} 的数据（共 {len(filtered_df)} 条记录）")
 
-            # =============== 批量更新功能 (放入Expander以优化移动端空间) ===============
-            with st.expander("📦 批量更新工具 (点击展开)"):
-                st.markdown("""
-                <div class="batch-update-card">
-                    <div class="batch-update-title">批量更新状态</div>
-                </div>
-                """, unsafe_allow_html=True)
+            # =============== 批量更新功能 ===============
+            st.markdown("""
+            <div class="batch-update-card">
+                <div class="batch-update-title">📦 批量更新到货状态</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
+            
+            with batch_col1:
+                record_options = []
+                record_mapping = {}
+                for idx, row in filtered_df.iterrows():
+                    display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
+                    record_options.append(display_text)
+                    record_mapping[display_text] = row['record_id']
                 
-                batch_col1, batch_col2, batch_col3 = st.columns([2, 2, 1])
-                with batch_col1:
-                    record_options = []
-                    record_mapping = {}
-                    for idx, row in filtered_df.iterrows():
-                        display_text = f"{row['物资名称']} - {row['规格型号']} - {row['钢厂']} - {row['数量']}吨"
-                        record_options.append(display_text)
-                        record_mapping[display_text] = row['record_id']
-                    
-                    selected_records = st.multiselect(
-                        "选择要批量更新的记录",
-                        options=record_options,
-                        placeholder="选择多条记录..."
-                    )
-                
-                with batch_col2:
-                    new_status = st.selectbox(
-                        "选择新的到货状态",
-                        options=AppConfig.STATUS_OPTIONS,
-                        index=0,
-                        key="batch_status"
-                    )
-                
-                with batch_col3:
-                    st.write("")
-                    st.write("")
-                    batch_update_btn = st.button(
-                        "🚀 更新",
-                        type="primary",
-                        use_container_width=True,
-                        key="batch_update_btn"
-                    )
-                
-                if batch_update_btn and selected_records:
-                    if not selected_records:
-                        st.warning("请先选择要更新的记录")
-                    else:
-                        record_ids = [record_mapping[record] for record in selected_records]
-                        original_rows = [filtered_df[filtered_df['record_id'] == record_id].iloc[0] for record_id in record_ids]
-                        
-                        with st.spinner(f"正在批量更新 {len(record_ids)} 条记录..."):
-                            success_count, error_count = batch_update_logistics_status(
-                                record_ids, new_status, original_rows
-                            )
-                        
-                        if success_count > 0:
-                            st.success(f"✅ 成功更新 {success_count} 条记录")
-                            if error_count > 0:
-                                st.error(f"❌ {error_count} 条失败")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error("❌ 批量更新失败")
-
-            st.markdown("---")
-
-            # =============== 视图切换开关 ===============
-            is_mobile_view = st.toggle("📱 切换为移动端卡片视图", value=True)
-
-            if not is_mobile_view:
-                # ----------------- PC 表格视图 -----------------
-                st.markdown("**物流明细表** (状态更改会自动保存)")
-                display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
-                display_df = filtered_df[display_columns].copy()
-                display_df = display_df.reset_index(drop=True)
-
-                edited_df = st.data_editor(
-                    display_df,
+                selected_records = st.multiselect(
+                    "选择要批量更新的记录",
+                    options=record_options,
+                    placeholder="选择多条记录进行批量更新..."
+                )
+            
+            with batch_col2:
+                new_status = st.selectbox(
+                    "选择新的到货状态",
+                    options=AppConfig.STATUS_OPTIONS,
+                    index=0,
+                    key="batch_status"
+                )
+            
+            with batch_col3:
+                st.write("")
+                st.write("")
+                batch_update_btn = st.button(
+                    "🚀 批量更新",
+                    type="primary",
                     use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "到货状态": st.column_config.SelectboxColumn("到货状态", options=AppConfig.STATUS_OPTIONS, default="公司统筹中", required=True),
-                        "备注": st.column_config.TextColumn("备注", help="可自由编辑的备注信息"),
-                        "数量": st.column_config.NumberColumn("数量", format="%d"),
-                        "交货时间": st.column_config.DatetimeColumn("交货时间", format="YYYY-MM-DD HH:mm"),
-                        "卸货地址": st.column_config.TextColumn("卸货地址"),
-                    },
-                    key=f"logistics_editor_{project}"
+                    key="batch_update_btn"
                 )
-                auto_process_logistics_changes(edited_df, filtered_df, project)
-
-            else:
-                # ----------------- 移动端 卡片视图 -----------------
-                st.markdown("**📦 物流清单**")
-                
-                # 状态筛选（减少手机端渲染压力）
-                status_filter = st.multiselect(
-                    "状态筛选", 
-                    AppConfig.STATUS_OPTIONS, 
-                    default=["未到货", "运输装货中", "钢厂已接单", "已到货"],
-                    key=f"mob_filter_{project}"
-                )
-                
-                # 筛选数据
-                if status_filter:
-                    mobile_df = filtered_df[filtered_df["到货状态"].isin(status_filter)].copy()
+            
+            if batch_update_btn and selected_records:
+                if not selected_records:
+                    st.warning("请先选择要更新的记录")
                 else:
-                    mobile_df = filtered_df.copy()
-                
-                # 按时间倒序
-                mobile_df = mobile_df.sort_values(by="交货时间", ascending=False)
-                
-                if mobile_df.empty:
-                    st.info("没有符合筛选条件的记录")
-                
-                # 遍历每一行生成卡片
-                for idx, row in mobile_df.iterrows():
-                    # 状态颜色逻辑
-                    if row['到货状态'] == "未到货":
-                        status_color = "#ff4b4b"
-                        bg_color = "rgba(255, 75, 75, 0.05)"
-                    elif row['到货状态'] == "已到货":
-                        status_color = "#4CAF50"
-                        bg_color = "rgba(76, 175, 80, 0.05)"
+                    record_ids = [record_mapping[record] for record in selected_records]
+                    original_rows = [filtered_df[filtered_df['record_id'] == record_id].iloc[0] for record_id in record_ids]
+                    
+                    with st.spinner(f"正在批量更新 {len(record_ids)} 条记录..."):
+                        success_count, error_count = batch_update_logistics_status(
+                            record_ids, 
+                            new_status,
+                            original_rows
+                        )
+                    
+                    if success_count > 0:
+                        st.success(f"✅ 成功更新 {success_count} 条记录的状态为【{new_status}】")
+                        if error_count > 0:
+                            st.error(f"❌ 有 {error_count} 条记录更新失败")
+                        st.rerun()
                     else:
-                        status_color = "#2196F3"
-                        bg_color = "rgba(33, 150, 243, 0.05)"
-                    
-                    # 卡片容器
-                    st.markdown(f"""
-                    <div style="
-                        border-left: 6px solid {status_color};
-                        background-color: {bg_color};
-                        padding: 12px;
-                        margin-bottom: 12px;
-                        border-radius: 8px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                    ">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                            <div style="flex:1;">
-                                <div style="font-weight:bold; font-size:1.1em; color:#333;">{row['物资名称']}</div>
-                                <div style="color:#666; font-size:0.9em; margin-top:2px;">{row['规格型号']}</div>
-                            </div>
-                            <div style="text-align:right; min-width:80px;">
-                                <div style="background:{status_color}; color:white; padding:2px 8px; border-radius:12px; font-size:0.75em; display:inline-block; font-weight:bold;">
-                                    {row['到货状态']}
-                                </div>
-                                <div style="font-weight:bold; font-size:1.2em; color:#333; margin-top:6px;">{int(row['数量'])}<span style="font-size:0.6em; font-weight:normal; color:#666;"> 吨</span></div>
-                            </div>
-                        </div>
-                        <div style="margin-top:8px; border-top:1px dashed #ddd; padding-top:6px; font-size:0.85em; color:#555; display:flex; align-items:center;">
-                            <span style="margin-right:5px;">📅</span> 
-                            {row['交货时间'].strftime('%m-%d %H:%M') if pd.notna(row['交货时间']) else '时间未定'}
-                            <span style="margin-left:auto; color:#888;">{row['钢厂'][:6]}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 详情与编辑折叠区
-                    with st.expander(f"📝 操作与详情 (ID: {str(row['record_id'])[-4:]})"):
-                        col_m1, col_m2 = st.columns(2)
-                        
-                        with col_m1:
-                            st.caption("🏭 钢厂信息")
-                            st.write(f"{row['钢厂']}")
-                            st.caption("👤 联系方式")
-                            st.write(f"{row['联系人']} {row['联系方式']}")
-                        
-                        with col_m2:
-                            st.caption("📍 卸货地址")
-                            st.write(row['卸货地址'])
-                            
-                            st.markdown("---")
-                            st.caption("⚙️ 状态更新")
-                            # 移动端直接更新状态
-                            current_status = row['到货状态']
-                            new_status_mobile = st.selectbox(
-                                "选择新状态",
-                                options=AppConfig.STATUS_OPTIONS,
-                                index=AppConfig.STATUS_OPTIONS.index(current_status) if current_status in AppConfig.STATUS_OPTIONS else 0,
-                                key=f"mobile_status_{row['record_id']}",
-                                label_visibility="collapsed"
-                            )
-                            
-                            # 如果状态改变，触发更新
-                            if new_status_mobile != current_status:
-                                if update_logistics_status(row['record_id'], new_status_mobile, row):
-                                    st.toast(f"✅ 更新成功: {new_status_mobile}")
-                                    time.sleep(1)
-                                    st.rerun()
+                        st.error("❌ 批量更新失败，请重试")
+
+            # 准备显示的列（排除record_id和收货地址，保留卸货地址）
+            display_columns = [col for col in filtered_df.columns if col not in ["record_id", "收货地址"]]
+            display_df = filtered_df[display_columns].copy()
+            display_df = display_df.reset_index(drop=True)
+
+            # 使用自动保存的数据编辑器
+            # 去除了特定的宽度设置，允许自动调整；确保文本列为TextColumn以保持左对齐
+            st.markdown("**物流明细表** (状态更改会自动保存)")
+            edited_df = st.data_editor(
+                display_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "到货状态": st.column_config.SelectboxColumn(
+                        "到货状态",
+                        options=AppConfig.STATUS_OPTIONS,
+                        default="公司统筹中",
+                        required=True,
+                        # 去除width设置以自动调整
+                    ),
+                    "备注": st.column_config.TextColumn(
+                        "备注",
+                        help="可自由编辑的备注信息",
+                        # 去除width设置以自动调整
+                    ),
+                    "数量": st.column_config.NumberColumn(
+                        "数量",
+                        format="%d",
+                        # 去除width设置以自动调整
+                    ),
+                    "交货时间": st.column_config.DatetimeColumn(
+                        "交货时间",
+                        format="YYYY-MM-DD HH:mm",
+                        # 去除width设置以自动调整
+                    ),
+                    "卸货地址": st.column_config.TextColumn(
+                        "卸货地址",
+                        # 明确指定为TextColumn以确保左对齐
+                    ),
+                    "钢厂": st.column_config.TextColumn("钢厂"),
+                    "物资名称": st.column_config.TextColumn("物资名称"),
+                    "规格型号": st.column_config.TextColumn("规格型号"),
+                    "联系人": st.column_config.TextColumn("联系人"),
+                    "联系方式": st.column_config.TextColumn("联系方式"),
+                    "项目部": st.column_config.TextColumn("项目部"),
+                    # 其他列自动配置
+                },
+                key=f"logistics_editor_{project}"
+            )
+
+            auto_process_logistics_changes(edited_df, filtered_df, project)
 
             st.markdown("""
             <div class="remark-card logistics-remark">
@@ -1051,7 +1027,8 @@ def display_metrics_cards(filtered_df):
     overdue = len(filtered_df[filtered_df["超期天数"] > 0])
     max_overdue = filtered_df["超期天数"].max() if overdue > 0 else 0
 
-    # 使用网格布局替代 st.columns
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    cols = st.columns(4)
     metrics = [
         ("📦", "总需求量", f"{total:,}", "吨", "total"),
         ("🚚", "已发货量", f"{shipped:,}", "吨", "shipped"),
@@ -1059,20 +1036,19 @@ def display_metrics_cards(filtered_df):
         ("⚠️", "超期订单", f"{overdue}", "单", "overdue", f"最大超期: {max_overdue}天" if overdue > 0 else "")
     ]
 
-    st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
-    for metric in metrics:
-        extra_info = f'<div style="font-size:0.8rem; color:#666;">{metric[5]}</div>' if len(metric) > 5 else ''
-        st.markdown(f"""
-        <div class="metric-card {metric[4]}">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-                <span style="font-size:1.2rem">{metric[0]}</span>
-                <span style="font-weight:600; font-size:0.9rem;">{metric[1]}</span>
+    for idx, metric in enumerate(metrics):
+        with cols[idx]:
+            st.markdown(f"""
+            <div class="metric-card {metric[4]}">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:1.2rem">{metric[0]}</span>
+                    <span style="font-weight:600">{metric[1]}</span>
+                </div>
+                <div class="card-value">{metric[2]}</div>
+                <div class="card-unit">{metric[3]}</div>
+                {f'<div style="font-size:0.8rem; color:#666;">{metric[5]}</div>' if len(metric) > 5 else ''}
             </div>
-            <div class="card-value">{metric[2]}</div>
-            <div class="card-unit">{metric[3]}</div>
-            {extra_info}
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -1120,10 +1096,13 @@ def show_project_selection(df):
             current_date = datetime.now().date()
             start_date = current_date - timedelta(days=15)
             end_date = current_date + timedelta(days=15)
+
             logistics_df = logistics_df.dropna(subset=['交货时间'])
             logistics_df['交货日期'] = logistics_df['交货时间'].dt.date
+
             mask = (logistics_df['交货日期'] >= start_date) & (logistics_df['交货日期'] <= end_date)
             filtered_logistics = logistics_df[mask]
+
             valid_projects = sorted([p for p in filtered_logistics["项目部"].unique() if p != ""])
 
     selected = st.selectbox(
@@ -1142,7 +1121,9 @@ def show_project_selection(df):
         st.rerun()
 
     if st.session_state.get('need_password', False):
-        password = st.text_input("请输入密码", type="password", key="password_input")
+        password = st.text_input("请输入密码",
+                                 type="password",
+                                 key="password_input")
         if st.button("验证密码"):
             if password == "123456":
                 st.session_state.project_selected = True
@@ -1175,7 +1156,7 @@ def show_plan_tab(df, project):
         date_range_df = filtered_df[
             (filtered_df["下单时间"].dt.date >= start_date) &
             (filtered_df["下单时间"].dt.date <= end_date)
-        ]
+            ]
 
         if not date_range_df.empty:
             display_metrics_cards(date_range_df)
@@ -1451,7 +1432,7 @@ def main():
         layout="wide",
         page_title="钢筋发货监控系统",
         page_icon="🏗️",
-        initial_sidebar_state="collapsed"
+        initial_sidebar_state="expanded"
     )
     apply_card_styles()
 
