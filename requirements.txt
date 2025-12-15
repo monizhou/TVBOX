@@ -5,3 +5,11 @@ openpyxl
 requests
 plotly
 streamlit_js_eval  # <--- 这个必须要有，否则无法获取定位
+
+streamlit
+pandas
+openpyxl
+requests
+streamlit_js_eval
+qrcode
+pillow
