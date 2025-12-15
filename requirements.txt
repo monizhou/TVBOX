@@ -1,11 +1,20 @@
-streamlit
-pandas
-openpyxl
-requests
-hashlib
-json
-csv
-qrcode
-pillow
-streamlit_js_eval
-subprocess
+# 核心 Web 应用框架
+streamlit>=1.30.0
+
+# 数据处理和分析
+pandas>=2.0.0
+
+# 读写 Excel 文件 (.xlsx, .xlsm) 所需的引擎
+openpyxl>=3.1.2
+
+# 用于发送飞书通知 (HTTP 请求)
+requests>=2.31.0
+
+# 以下是常用的标准库，通常不需要在 requirements.txt 中列出，
+# 但为了完整性，如果您的环境精简，可以考虑：
+# hashlib (内置)
+# os (内置)
+# re (内置)
+# time (内置)
+# datetime (内置)
+# json (内置)
