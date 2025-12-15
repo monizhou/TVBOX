@@ -26,7 +26,7 @@ class AppConfig:
     ]
 
     # 🚨🚨🚨 【重要】请填入您最新的 Ngrok 网址 (不要带最后的 /) 🚨🚨🚨
-    BASE_URL = "https://glittery-bryant-applaudably.ngrok-free.dev"
+    BASE_URL = "https://glittery-bryant-applaudably.ngrok-free.dev -> http://localhost:8501"
 
     # Excel 表格配置
     LOGISTICS_SHEET_NAME = "物流明细"
@@ -537,3 +537,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
